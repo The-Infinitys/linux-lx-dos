@@ -9,14 +9,14 @@ find_package(Qt6 6.4 REQUIRED COMPONENTS Quick)
 qt_standard_project_setup()
 
 qt_add_executable(applinux-lx-dos
-    main.cpp
+    src/main.cpp
 )
 
 qt_add_qml_module(applinux-lx-dos
     URI linux-lx-dos
     VERSION 1.0
     QML_FILES
-        Main.qml
+        ui/Main.qml
 )
 
 set_target_properties(applinux-lx-dos PROPERTIES
