@@ -1,3 +1,3 @@
-pub mod ide;
-pub mod usb;
-// Add other device modules as needed
+pub trait QemuDevice {
+    fn to_qemu_args(&self) -> Vec<String>;
+}

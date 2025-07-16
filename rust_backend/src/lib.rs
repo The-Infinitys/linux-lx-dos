@@ -1,9 +1,15 @@
+mod qemu;
+mod error;
+
 use std::ffi::{c_char, CStr, CString};
-use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Child, Command};
+use tokio::process::Child;
 use tokio::runtime::Runtime;
+use std::process::Stdio;
+
+pub use crate::error::QemuError;
+use crate::qemu::{QemuMachine, config::QemuConfig};
 
 // A handle to the running VM, allowing us to stop it.
 pub struct VmHandle {
@@ -52,15 +58,29 @@ pub unsafe extern "C" fn stop_vm(handle_ptr: *mut SharedVmHandle) {
 }
 
 async fn run_qemu_process(vm_handle: SharedVmHandle, disk_image: String, log_callback: LogCallback) {
-    let mut cmd = Command::new("qemu-system-x86_64");
-    cmd.arg("-m")
-        .arg("4096")
-        .arg("-cpu")
-        .arg("host")
-        .arg("-enable-kvm")
-        .arg("-smp")
-        .arg("4")
-        .arg("-hda")
+    // Create a default QemuConfig for now. In a real application, this would come from user input.
+    let mut qemu_config = QemuConfig::new();
+    qemu_config.memory = Some(4096);
+    qemu_config.cpu_cores = Some(4);
+    qemu_config.enable_kvm = true;
+    // qemu_config.system_architecture = Some("i386".to_string()); // Example: set a specific architecture
+
+    let qemu_machine = QemuMachine::new(qemu_config);
+
+    let mut cmd = match qemu_machine.build_command() {
+        Ok(cmd) => cmd,
+        Err(e) => {
+            let error_msg = match e {
+                QemuError::QemuBinaryNotFound(binary) => format!("QEMU binary not found: {}", binary),
+                QemuError::IoError(io_err) => format!("IO Error: {}", io_err),
+            };
+            let c_error_msg = CString::new(error_msg).unwrap();
+            log_callback(c_error_msg.as_ptr());
+            return;
+        }
+    };
+
+    cmd.arg("-hda")
         .arg(&disk_image)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
