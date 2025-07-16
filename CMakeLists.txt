@@ -42,6 +42,8 @@ qt_add_executable(linux_lx_dos
         ui/welcome/dialog.ui
 )
 
+qt_add_resources(linux_lx_dos resources/resources.qrc)
+
 # Add dependency to ensure rust lib is built before C++ app
 add_dependencies(linux_lx_dos rust_backend_build)
 
