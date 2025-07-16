@@ -33,14 +33,15 @@ pub unsafe extern "C" fn start_vm(
 
             // Add devices
             qemu_machine.add_device(Box::new(
-                crate::qemu::devices::hard_disk::HardDiskDevice::new(
-                    path.clone(),
-                    "ide".to_string(),
+                crate::qemu::devices::drive::hard_disk::HardDiskDevice::new(
+                    path.clone().into(),
+                    "virtio".into(),
+                    "qcow2".into(),
                 ),
             ));
-            qemu_machine.add_device(Box::new(
-                crate::qemu::devices::bios_uefi::BiosUefiDevice::new(None),
-            )); // Use default BIOS/UEFI
+            qemu_machine.add_device(Box::new(crate::qemu::devices::boot::bios::BiosDevice::new(
+                None,
+            ))); // Use default BIOS/UEFI
             qemu_machine.add_device(Box::new(crate::qemu::devices::input::InputDevice::new(
                 "usb-kbd".to_string(),
             )));

@@ -20,10 +20,12 @@ impl QemuConfig {
         let mut args = Vec::new();
 
         if let Some(mem) = self.memory {
-            args.push(format!("-m {}", mem));
+            args.push("-m".to_string());
+            args.push(format!("size={}M", mem));
         }
         if let Some(cores) = self.cpu_cores {
-            args.push(format!("-smp cores={}", cores));
+            args.push("-smp".to_string());
+            args.push(format!("cores={}", cores));
         }
         if self.enable_kvm {
             args.push("-enable-kvm".to_string());

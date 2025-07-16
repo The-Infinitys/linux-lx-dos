@@ -1,5 +1,5 @@
-pub mod hard_disk;
-pub mod bios_uefi;
+pub mod drive;
+pub mod boot;
 pub mod input;
 pub mod audio;
 

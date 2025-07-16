@@ -12,6 +12,6 @@ impl InputDevice {
 
 impl QemuDevice for InputDevice {
     fn to_qemu_args(&self) -> Vec<String> {
-        vec![format!("-device {}", self.device_type)]
+        vec!["-device".to_string(), format!("{}", self.device_type)]
     }
 }
