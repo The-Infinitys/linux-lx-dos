@@ -1,1 +1,0 @@
-pub mod cxx_qt_object;

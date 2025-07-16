@@ -1,8 +1,0 @@
-[package]
-name = "linux-lx-dos"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-cxx-qt = "0.7.2"
-cxx-qt-build = "0.7.2"
