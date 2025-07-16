@@ -1,4 +1,5 @@
 pub mod configure;
+pub mod device;
 use configure::QemuMemory;
 
 use crate::modules::lx_dos::vm::configure::{Architecture, QemuCpu};
