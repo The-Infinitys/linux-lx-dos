@@ -8,3 +8,7 @@ pub struct QemuSystem {
     pub mem: QemuMemory,
     pub cpu: QemuCpu,
 }
+
+pub trait QemuArgs {
+    fn to_qemu_args(&self) -> Vec<String>;
+}

@@ -1,3 +1,4 @@
+use super::QemuArgs;
 use std::fmt;
 use std::str::FromStr;
 
@@ -13,11 +14,48 @@ pub struct QemuCpuCores {
     absolute: Option<usize>, // 絶対値 (例: 4 cores)
 }
 
+impl QemuCpuCores {
+    /// QEMUの-smpオプションで使用するコアの絶対数を文字列で返します。
+    /// 相対値の場合は、ホストのCPUコア数に基づいて計算します。
+    pub fn get(&self) -> usize {
+        // TODO: 実際のアプリケーションでは、ホストのCPUコア数を動的に取得する必要があります。
+        // 例: num_cpus::get().
+        // ここでは仮に8コアとします。
+        let host_cores_count = std::thread::available_parallelism()
+            .expect("Error while getting the number of available threads")
+            .get(); // 仮のホストCPUコア数
+
+        if let Some(absolute) = self.absolute {
+            absolute
+        } else if let Some(relative) = self.relative {
+            // ホストのコア数に対する相対値を計算し、最も近い整数に丸めます。
+            let calculated_cores = (relative * host_cores_count as f64).round() as usize;
+            // 少なくとも1コアは確保するようにする (QEMUの-smpは0を許容しない場合があるため)
+            calculated_cores.max(1)
+        } else {
+            // どちらも設定されていない場合は0コアとして扱うか、エラーを返す
+            // FromStrの実装により、この状態にはならないはずですが、念のため
+            0
+        }
+    }
+}
+
 impl Default for QemuCpu {
     /// QemuCpuのデフォルト値を定義します。
     /// デフォルトは50%のCPUコアを使用します。
     fn default() -> Self {
         QemuCpu::from_str("50%").unwrap()
+    }
+}
+
+impl QemuArgs for QemuCpu {
+    fn to_qemu_args(&self) -> Vec<String> {
+        vec![
+            "-cpu".to_string(),
+            self.model.to_string(),
+            "-smp".to_string(), // "-smp" も String に変換
+            self.cores.get().to_string(),
+        ]
     }
 }
 
@@ -204,5 +242,22 @@ impl Default for Architecture {
             // fall back
             _ => Self::X86_64,
         }
+    }
+}
+impl fmt::Display for Architecture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::X86_64 => "x86_64",
+                Self::Arm64 => "arm64",
+            }
+        )
+    }
+}
+impl QemuArgs for Architecture {
+    fn to_qemu_args(&self) -> Vec<String> {
+        vec![format!("qemu-system-{}", self)]
     }
 }
