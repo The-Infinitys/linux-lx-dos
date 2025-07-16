@@ -20,10 +20,10 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=GLESv2");
     println!("cargo:rustc-link-lib=dylib=X11");
 
-    println!("cargo:rerun-if-changed=lib/qt-lx-dos/c_api.h");
+    println!("cargo:rerun-if-changed=lib/qt-lx-dos/api/qt-lx-dos.hpp");
 
     let bindings = bindgen::Builder::default()
-        .header("lib/qt-lx-dos/c_api.h")
+        .header("lib/qt-lx-dos/api/qt-lx-dos.hpp")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");

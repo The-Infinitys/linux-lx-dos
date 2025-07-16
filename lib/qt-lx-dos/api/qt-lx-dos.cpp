@@ -1,5 +1,5 @@
-#include "c_api.h"
-#include "mainwindow.h"
+#include "qt-lx-dos.hpp"
+#include "../ui/main/window.hpp"
 #include <QApplication>
 
 void run_qt_app() {

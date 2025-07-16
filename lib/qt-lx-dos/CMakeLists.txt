@@ -9,12 +9,13 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 qt_standard_project_setup()
 
 add_library(qt-lx-dos STATIC
-    mainwindow.cpp
-    mainwindow.h
-    mainwindow.ui
-    c_api.cpp
-    c_api.h
+    ui/main/window.cpp
+    ui/main/window.hpp
+    ui/main/window.ui
+    api/qt-lx-dos.cpp
+    api/qt-lx-dos.hpp
 )
+
 target_link_libraries(qt-lx-dos PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 include(GNUInstallDirs)
