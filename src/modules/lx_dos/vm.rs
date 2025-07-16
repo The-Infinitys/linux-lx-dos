@@ -1,6 +1,9 @@
+pub mod configure;
+use configure::QemuMemory;
 #[derive(Default, Debug)]
 pub struct QemuSystem {
     pub arch: Architecture,
+    pub mem: QemuMemory,
 }
 #[derive(Debug)]
 pub enum Architecture {

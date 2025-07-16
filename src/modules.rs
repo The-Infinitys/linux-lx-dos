@@ -1,2 +1,2 @@
 pub mod app;
-pub mod vm;
+pub mod lx_dos;
