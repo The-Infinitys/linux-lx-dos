@@ -1,11 +1,6 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-
+use linux_lx_dos::qt_lx_dos;
 fn main() {
     unsafe {
-        run_qt_app();
+        qt_lx_dos::run_qt_app();
     }
 }
