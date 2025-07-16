@@ -34,12 +34,12 @@ set(RUST_BACKEND_LIB ${RUST_TARGET_DIR}/release/librust_backend.a)
 # --- C++/Qt Frontend --- 
 qt_add_executable(linux_lx_dos
         src/main.cpp
-        ui/mainwindow.cpp
-        ui/mainwindow.h
-        ui/mainwindow.ui
-        ui/welcomedialog.cpp
-        ui/welcomedialog.h
-        ui/welcomedialog.ui
+        ui/main/window.cpp
+        ui/main/window.hpp
+        ui/main/window.ui
+        ui/welcome/dialog.cpp
+        ui/welcome/dialog.hpp
+        ui/welcome/dialog.ui
 )
 
 # Add dependency to ensure rust lib is built before C++ app

@@ -1,8 +1,8 @@
 #include <QApplication>
 #include <QSettings>
 #include <QMessageBox>
-#include "../ui/mainwindow.h"
-#include "../ui/welcomedialog.h"
+#include "../ui/main/window.hpp"
+#include "../ui/welcome/dialog.hpp"
 
 int main(int argc, char *argv[])
 {
