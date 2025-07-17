@@ -1,23 +1,19 @@
 use super::lx_dos::LxDos;
-use crate::qt_lx_dos;
+use crate::command;
 use crate::utils::args::Args;
-use crate::utils::error::LxDosError;
+use crate::utils::args::Commands;
+use crate::LxDosError;
 pub struct App {
-    lx_dos:LxDos,
+    lx_dos: LxDos,
 }
 
 impl App {
-    pub fn run(&self, args: Args) -> Result<(), LxDosError> {
+    pub fn exec(&self, args: Args) -> Result<(), LxDosError> {
         println!("{:#?}", self.lx_dos);
-        if args.gui {
-            unsafe {
-                qt_lx_dos::run_qt_app();
-            }
+        match args.command {
+            Commands::Start => command::start(),
+            Commands::Stop => command::stop(),
         }
-        if args.cli {
-            println!("Hello, World!");
-        }
-        return Ok(());
     }
 }
 impl Default for App {

@@ -1,5 +1,5 @@
 use clap::Parser;
-
+use clap::Subcommand;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
@@ -22,4 +22,11 @@ pub struct Args {
     /// Run in graphical user interface mode
     #[arg(long, default_value_t = true, conflicts_with = "cli")]
     pub gui: bool,
+    #[command(subcommand)]
+    pub command: Commands,
+}
+#[derive(Debug, Subcommand)]
+pub enum Commands {
+    Start,
+    Stop,
 }

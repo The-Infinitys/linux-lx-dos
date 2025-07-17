@@ -1,7 +1,7 @@
 use clap::Parser;
 use linux_lx_dos::modules::app::App;
 use linux_lx_dos::utils::args::Args;
-fn main() ->Result<(), linux_lx_dos::utils::error::LxDosError>{
+fn main() -> Result<(), linux_lx_dos::LxDosError> {
     let args = Args::parse();
 
     let log_level = if args.quiet {
@@ -19,5 +19,5 @@ fn main() ->Result<(), linux_lx_dos::utils::error::LxDosError>{
     env_logger::builder().filter_level(log_level).init();
 
     let app = App::default();
-    app.run(args)
+    app.exec(args)
 }
