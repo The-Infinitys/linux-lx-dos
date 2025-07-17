@@ -25,8 +25,11 @@ add_library(qt-lx-dos STATIC
     ui/welcome/welcome.ui
 )
 
+qt_add_resources(RESOURCES src/tray.qrc)
+
 target_link_libraries(qt-lx-dos PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(qt-lx-dos PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+target_link_libraries(qt-lx-dos PRIVATE RESOURCES)
 include(GNUInstallDirs)
 install(TARGETS qt-lx-dos
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

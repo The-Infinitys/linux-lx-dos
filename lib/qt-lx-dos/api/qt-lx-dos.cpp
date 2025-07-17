@@ -9,6 +9,18 @@ static Widget *main_window = nullptr;
 static SettingsWindow *settings_window = nullptr;
 static WelcomeWindow *welcome_window = nullptr;
 
+RustEventCallback global_event_callback = nullptr;
+
+void register_event_callback(RustEventCallback callback) {
+    global_event_callback = callback;
+}
+
+void send_qt_command(const char* command_name, const char* command_data) {
+    // This is where you would handle commands from Rust
+    // For now, just print them to debug output
+    qDebug("Received command from Rust: %s, data: %s", command_name, command_data);
+}
+
 void run_qt_app() {
     if (app) return;
     int argc = 0;

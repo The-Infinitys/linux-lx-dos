@@ -29,4 +29,5 @@ pub struct Args {
 pub enum Commands {
     Start,
     Stop,
+    Welcome,
 }
