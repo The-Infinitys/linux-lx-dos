@@ -6,7 +6,8 @@ void run_qt_app() {
     int argc = 0;
     char **argv = nullptr;
     QApplication a(argc, argv);
+    QApplication::setQuitOnLastWindowClosed(false);
     Widget w;
-    w.show();
+    // w.show(); // ウィンドウは非表示で起動
     a.exec();
 }
