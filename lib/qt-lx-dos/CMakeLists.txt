@@ -14,12 +14,11 @@ add_library(qt-lx-dos STATIC
     ui/main/window.ui
     api/qt-lx-dos.cpp
     api/qt-lx-dos.hpp
-    public/icon.svg
+    src/tray.qrc
 )
 
 target_link_libraries(qt-lx-dos PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(qt-lx-dos PRIVATE Qt${QT_VERSION_MAJOR}::Core)
-
 include(GNUInstallDirs)
 install(TARGETS qt-lx-dos
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}

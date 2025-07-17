@@ -1,5 +1,6 @@
 #include "window.hpp"
 #include "ui_window.h"
+#include "../../qrc_tray.cpp"
 #include <QCloseEvent>
 #include <QMessageBox>
 #include <QApplication>
@@ -27,8 +28,8 @@ void Widget::closeEvent(QCloseEvent *event)
 {
     if (trayIcon->isVisible())
     {
-        QMessageBox::information(this, tr("LX-DOS"),
-                                 tr("The program will continue to run in the system tray. To terminate the program, choose \"Quit\" in the context menu of the system tray icon."));
+        // QMessageBox::information(this, tr("LX-DOS"),
+        //                          tr("The program will continue to run in the system tray. To terminate the program, choose \"Quit\" in the context menu of the system tray icon."));
         hide();
         event->ignore();
     }
@@ -84,7 +85,8 @@ void Widget::createTrayIcon()
         qDebug() << it.next();
     }
     trayIcon = new QSystemTrayIcon(this);
-    trayIcon->setIcon(QIcon(QCoreApplication::applicationDirPath() + "/icon.svg"));
+    // QResource::registerResource(trayIcon->"/public/tray.qrc");
+    trayIcon->setIcon(QIcon(":/lx-dos/tray/icon.svg"));
     trayIcon->setToolTip(tr("LX-DOS"));
     trayIcon->setContextMenu(trayIconMenu);
 }

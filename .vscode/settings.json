@@ -1,3 +1,10 @@
 {
-    "cmake.sourceDirectory": "/home/the-infinitys/github/linux-lx-dos/lib/qt-lx-dos"
+    "cmake.sourceDirectory": "/home/the-infinitys/github/linux-lx-dos/lib/qt-lx-dos",
+    "files.associations": {
+        "*.vue": "vue",
+        "*.svg": "html",
+        "*.ui": "xml",
+        "*.qrc": "xml",
+        "qapplication": "cpp"
+    }
 }
