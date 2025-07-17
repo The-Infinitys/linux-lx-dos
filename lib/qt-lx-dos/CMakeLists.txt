@@ -9,12 +9,20 @@ find_package(Qt6 REQUIRED COMPONENTS Core)
 qt_standard_project_setup()
 
 add_library(qt-lx-dos STATIC
-    ui/main/window.cpp
-    ui/main/window.hpp
-    ui/main/window.ui
     api/qt-lx-dos.cpp
     api/qt-lx-dos.hpp
     src/tray.qrc
+    ui/main/main.cpp
+    ui/main/main.hpp
+    ui/main/main.ui
+    ui/task/tray.cpp
+    ui/task/tray.hpp
+    ui/settings/settings.cpp
+    ui/settings/settings.hpp
+    ui/settings/settings.ui
+    ui/welcome/welcome.cpp
+    ui/welcome/welcome.hpp
+    ui/welcome/welcome.ui
 )
 
 target_link_libraries(qt-lx-dos PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)

@@ -6,6 +6,9 @@ extern "C" {
 #endif
 
 void run_qt_app();
+void show_main_window();
+void show_settings_window();
+void show_welcome_window();
 
 #ifdef __cplusplus
 }

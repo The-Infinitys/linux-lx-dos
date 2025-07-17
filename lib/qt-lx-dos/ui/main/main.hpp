@@ -2,8 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QWidget>
-#include <QSystemTrayIcon>
-#include <QMenu>
+#include "../task/tray.hpp"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class Widget; }
@@ -20,18 +19,9 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
 
-private slots:
-    void iconActivated(QSystemTrayIcon::ActivationReason reason);
-    void showNormalWindow();
-    void quitApplication();
-
 private:
     Ui::Widget *ui;
-    QSystemTrayIcon *trayIcon;
-    QMenu *trayIconMenu;
-
-    void createTrayIcon();
-    void createActions();
+    Tray *tray;
 };
 
 #endif // MAINWINDOW_H
