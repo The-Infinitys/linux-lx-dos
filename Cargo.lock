@@ -652,6 +652,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "env_logger",
+ "gio",
  "glib 0.21.0",
  "gtk4",
  "lazy_static",

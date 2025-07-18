@@ -2,10 +2,12 @@ use crate::LxDosError;
 use gtk4 as gtk;
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow};
+use gio::ApplicationFlags;
 
 pub fn run() -> Result<(), LxDosError> {
     let application = Application::builder()
         .application_id("com.example.lx-dos-background")
+        .flags(ApplicationFlags::NON_UNIQUE) // ここを追加
         .build();
 
     application.connect_activate(|app| {

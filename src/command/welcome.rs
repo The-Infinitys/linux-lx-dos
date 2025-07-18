@@ -8,6 +8,12 @@ pub fn welcome() -> Result<(), crate::LxDosError> {
         .build();
 
     application.connect_activate(|app| {
+        // GTKテーマの自動適用確認
+        if let Some(settings) = gtk::Settings::default() {
+            let theme_name = settings.property::<String>("gtk-theme-name");
+            println!("Welcome window applying GTK theme: {}", theme_name);
+        }
+
         let window = ApplicationWindow::builder()
             .application(app)
             .title("Welcome to LX-DOS")
