@@ -8,12 +8,10 @@ fn main() -> Result<(), linux_lx_dos::LxDosError> {
         log::LevelFilter::Off
     } else if args.debug {
         log::LevelFilter::Debug
+    } else if args.verbose {
+        log::LevelFilter::Trace
     } else {
-        match args.verbose {
-            0 => log::LevelFilter::Info,
-            1 => log::LevelFilter::Warn,
-            _ => log::LevelFilter::Trace,
-        }
+        log::LevelFilter::Warn
     };
 
     env_logger::builder().filter_level(log_level).init();

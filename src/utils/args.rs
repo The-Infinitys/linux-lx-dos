@@ -8,11 +8,11 @@ pub struct Args {
     pub quiet: bool,
 
     /// Increase message verbosity
-    #[arg(short, long, action = clap::ArgAction::Count, conflicts_with_all = &["quiet", "debug"])]
-    pub verbose: u8,
+    #[arg(short, long, conflicts_with_all = &["quiet", "debug"])]
+    pub verbose: bool,
 
     /// Enable debug output
-    #[arg(short, long,conflicts_with_all = &["verbose", "quiet"])]
+    #[arg(short, long, conflicts_with_all = &["verbose", "quiet"])]
     pub debug: bool,
 
     /// Run in command-line interface mode

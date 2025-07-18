@@ -1,3 +1,4 @@
+use gtk::prelude::*;
 use gtk::{
     builders::ApplicationWindowBuilder,
     gio::{
@@ -5,7 +6,7 @@ use gtk::{
         ApplicationFlags, File,
     },
     glib::ExitCode,
-    Application, ApplicationWindow,
+    Application, ApplicationWindow, Settings,
 };
 
 const APP_ID: &str = "org.lx-dos.Main";
@@ -26,7 +27,13 @@ impl Default for Gui {
 }
 impl Gui {
     pub fn connect_activate<F: Fn(&Application) + 'static>(&self, f: F) {
-        self.gtk.connect_activate(f);
+        self.gtk.connect_activate(move |app| {
+            if let Some(settings) = Settings::default() {
+                let theme_name = settings.property::<String>("gtk-theme-name");
+                log::error!("Current GTK theme: {}", theme_name);
+            }
+            f(app);
+        });
     }
     pub fn connect_open<F: Fn(&Application, &[File], &str) + 'static>(&self, f: F) {
         self.gtk.connect_open(f);
