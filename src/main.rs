@@ -1,7 +1,6 @@
 use clap::Parser;
 use linux_lx_dos::command;
 use linux_lx_dos::utils::args::{Args, Commands};
-
 fn main() -> Result<(), linux_lx_dos::LxDosError> {
     let args = Args::parse();
 

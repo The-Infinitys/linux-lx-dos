@@ -1,10 +1,13 @@
 use super::lx_dos::LxDos;
-use crate::LxDosError;
 use crate::command;
 use crate::utils::args::Args;
 use crate::utils::args::Commands;
+use crate::LxDosError;
+pub mod gui;
+#[derive(Default, Debug)]
 pub struct App {
-    lx_dos: LxDos,
+    pub lx_dos: LxDos,
+    pub gui: gui::Gui,
 }
 
 impl App {
@@ -15,13 +18,6 @@ impl App {
             Commands::Stop => command::stop(),
             Commands::Welcome => command::welcome(),
             Commands::Run => command::run(),
-        }
-    }
-}
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            lx_dos: LxDos::default(),
         }
     }
 }
