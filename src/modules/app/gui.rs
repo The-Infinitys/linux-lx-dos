@@ -1,3 +1,4 @@
+// use gtk::prelude::*;
 use gtk::prelude::*;
 use gtk::{
     builders::ApplicationWindowBuilder,
@@ -6,7 +7,7 @@ use gtk::{
         ApplicationFlags, File,
     },
     glib::ExitCode,
-    Application, ApplicationWindow, Settings,
+    Application, ApplicationWindow, CssProvider, Settings,
 };
 
 const APP_ID: &str = "org.lx-dos.Main";
@@ -27,18 +28,24 @@ impl Default for Gui {
 }
 impl Gui {
     pub fn connect_activate<F: Fn(&Application) + 'static>(&self, f: F) {
-        self.gtk.connect_activate(move |app| {
-            if let Some(settings) = Settings::default() {
-                let theme_name = settings.property::<String>("gtk-theme-name");
-                log::error!("Current GTK theme: {}", theme_name);
-            }
-            f(app);
-        });
+        self.gtk.connect_activate(f);
     }
     pub fn connect_open<F: Fn(&Application, &[File], &str) + 'static>(&self, f: F) {
         self.gtk.connect_open(f);
     }
     pub fn window_builder(&self, title: &str) -> ApplicationWindowBuilder {
+        let mut theme_name = "default".to_string();
+        if let Some(settings) = Settings::default() {
+            theme_name = settings.property::<String>("gtk-theme-name");
+        }
+        let provider = CssProvider::new();
+        provider.load_named(&theme_name, None);
+        gtk::style_context_add_provider_for_display(
+            &gtk::gdk::Display::default().expect("Could not connect to a display."),
+            &provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+
         ApplicationWindow::builder()
             .application(&self.gtk)
             .title(title)

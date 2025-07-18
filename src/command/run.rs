@@ -1,7 +1,6 @@
-use gtk::glib::ExitCode;
-
 use super::super::modules::app::App;
 use crate::LxDosError;
+use gtk::glib::ExitCode;
 pub fn run() -> Result<(), LxDosError> {
     let app = App::default();
     let gui = app.gui.clone(); // guiをクローンしてクロージャに移動
@@ -21,7 +20,6 @@ pub fn run() -> Result<(), LxDosError> {
             // Set the label to "Hello World!" after the button has been clicked on
             button.set_label("Hello World!");
         });
-
         let window = gui
             .window_builder("Lx-DOS")
             .height_request(600)
@@ -31,6 +29,7 @@ pub fn run() -> Result<(), LxDosError> {
         window.present();
     });
     let result = app.gui.run();
+
     if result == ExitCode::new(0) {
         Ok(())
     } else {
