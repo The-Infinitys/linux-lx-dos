@@ -1,4 +1,5 @@
 use gtk::{
+    builders::ApplicationWindowBuilder,
     gio::{
         prelude::{ApplicationExt, ApplicationExtManual},
         ApplicationFlags, File,
@@ -30,13 +31,10 @@ impl Gui {
     pub fn connect_open<F: Fn(&Application, &[File], &str) + 'static>(&self, f: F) {
         self.gtk.connect_open(f);
     }
-    pub fn build_window(&self, title: &str) -> ApplicationWindow {
+    pub fn window_builder(&self, title: &str) -> ApplicationWindowBuilder {
         ApplicationWindow::builder()
             .application(&self.gtk)
             .title(title)
-            .default_width(800)
-            .default_height(600)
-            .build()
     }
     pub fn run_with_args(&self, args: Vec<String>) {
         self.gtk.run_with_args(&args);
