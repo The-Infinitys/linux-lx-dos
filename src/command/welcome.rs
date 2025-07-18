@@ -1,17 +1,27 @@
-use crate::LxDosError;
-use crate::qt_lx_dos;
-use crate::WELCOME_WINDOW_CLOSED_SENDER;
-use crate::command::start;
+use gtk4 as gtk;
+use gtk::prelude::*;
+use gtk::{Application, ApplicationWindow, Label};
 
-pub fn welcome() -> Result<(), LxDosError> {
-    unsafe {
-        qt_lx_dos::show_welcome_window();
-    }
+pub fn welcome() -> Result<(), crate::LxDosError> {
+    let application = Application::builder()
+        .application_id("com.example.welcome")
+        .build();
 
-    // Wait for the welcome window to be closed
-    WELCOME_WINDOW_CLOSED_SENDER.1.lock().unwrap().recv()
-        .map_err(|e| LxDosError::Message(format!("Failed to receive welcome window closed signal: {}", e)))?;
+    application.connect_activate(|app| {
+        let window = ApplicationWindow::builder()
+            .application(app)
+            .title("Welcome to LX-DOS")
+            .default_width(400)
+            .default_height(300)
+            .build();
 
-    println!("Welcome window closed. Starting LX-DOS...");
-    start::start()
+        let welcome_message = Label::new(Some("Welcome to LX-DOS!\n\nThis is a placeholder message. In a real application, this would display useful information or a setup guide."));
+        window.set_child(Some(&welcome_message));
+
+        window.show();
+    });
+
+    application.run_with_args::<&str>(&[]);
+
+    Ok(())
 }

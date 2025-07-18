@@ -1,5 +1,0 @@
-<RCC>
-    <qresource prefix="/lx-dos/tray">
-        <file alias="icon.svg">tray/icon.svg</file>
-    </qresource>
-</RCC>
