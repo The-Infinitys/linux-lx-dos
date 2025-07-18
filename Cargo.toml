@@ -6,12 +6,6 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.41", features = ["derive"] }
 env_logger = "0.11.8"
-libc = "0.2.174"
 log = "0.4.27"
 sysinfo = "0.36.0"
 thiserror = "2.0.12"
-nix = { version = "0.29.0", features = ["signal", "process"] }
-lazy_static = "1.5.0"
-gtk4 = "0.9.7"
-glib = "0.21.0"
-gio = "0.20.12"
