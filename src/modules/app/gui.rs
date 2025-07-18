@@ -28,7 +28,7 @@ impl Gui {
             .default_height(600)
             .build()
     }
-    pub fn run(&self) {
-        self.gtk.run();
+    pub fn run(&self,args:Vec<String>) {
+        self.gtk.run_with_args(&args);
     }
 }
