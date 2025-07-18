@@ -1,23 +1,17 @@
-use thiserror::Error;
 use std::fs;
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::process;
-
-#[derive(Debug, Error)]
-pub enum LxDosError {
-    #[error("IO-Error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("{0}")]
-    Message(String),
-}
 
 pub mod command;
 pub mod modules;
 pub mod utils;
+pub use utils::error::LxDosError;
 
 fn get_pid_file_path() -> Result<PathBuf, LxDosError> {
-    let user = std::env::var("USER").map_err(|e| LxDosError::Message(format!("Failed to get USER environment variable: {}", e)))?;
+    let user = std::env::var("USER").map_err(|e| {
+        LxDosError::Message(format!("Failed to get USER environment variable: {}", e))
+    })?;
     let tmp_dir = PathBuf::from("/tmp");
     let user_tmp_dir = tmp_dir.join(&user);
     let pid_file_path = user_tmp_dir.join("lx-dos.pid");
@@ -40,7 +34,9 @@ pub fn read_pid() -> Result<Option<u32>, LxDosError> {
     let pid_file_path = get_pid_file_path()?;
     if pid_file_path.exists() {
         let pid_str = fs::read_to_string(&pid_file_path)?;
-        let pid = pid_str.trim().parse::<u32>()
+        let pid = pid_str
+            .trim()
+            .parse::<u32>()
             .map_err(|e| LxDosError::Message(format!("Failed to parse PID from file: {}", e)))?;
         Ok(Some(pid))
     } else {
