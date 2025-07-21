@@ -11,7 +11,7 @@ pub struct QemuMouse {
 pub enum MouseModel {
     PS2,
     VirtIO,
-    USB,
+    Usb,
 }
 
 impl QemuMouse {
@@ -25,7 +25,7 @@ impl QemuArgs for QemuMouse {
         match self.model {
             MouseModel::PS2 => vec!["-device".to_string(), "ps2-mouse".to_string()],
             MouseModel::VirtIO => vec!["-device".to_string(), "virtio-mouse".to_string()],
-            MouseModel::USB => vec!["-device".to_string(), "usb-mouse".to_string()],
+            MouseModel::Usb => vec!["-device".to_string(), "usb-mouse".to_string()],
         }
     }
 }
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_mouse_usb() {
-        let mouse = QemuMouse::new(MouseModel::USB);
+        let mouse = QemuMouse::new(MouseModel::Usb);
         assert_eq!(mouse.to_qemu_args(), vec!["-device", "usb-mouse"]);
     }
 }

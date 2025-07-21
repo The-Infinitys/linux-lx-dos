@@ -9,8 +9,8 @@ pub struct QemuGraphics {
 
 #[derive(Debug)]
 pub enum GraphicsDriver {
-    QXL,
-    VGA,
+    Qxl,
+    Vga,
     VirtIO,
 }
 
@@ -23,8 +23,8 @@ impl QemuGraphics {
 impl QemuArgs for QemuGraphics {
     fn to_qemu_args(&self) -> Vec<String> {
         match self.driver {
-            GraphicsDriver::QXL => vec!["-vga".to_string(), "qxl".to_string()],
-            GraphicsDriver::VGA => vec!["-vga".to_string(), "std".to_string()],
+            GraphicsDriver::Qxl => vec!["-vga".to_string(), "qxl".to_string()],
+            GraphicsDriver::Vga => vec!["-vga".to_string(), "std".to_string()],
             GraphicsDriver::VirtIO => vec!["-vga".to_string(), "virtio".to_string()],
         }
     }
@@ -36,13 +36,13 @@ mod tests {
 
     #[test]
     fn test_graphics_qxl() {
-        let graphics = QemuGraphics::new(GraphicsDriver::QXL);
+        let graphics = QemuGraphics::new(GraphicsDriver::Qxl);
         assert_eq!(graphics.to_qemu_args(), vec!["-vga", "qxl"]);
     }
 
     #[test]
     fn test_graphics_vga() {
-        let graphics = QemuGraphics::new(GraphicsDriver::VGA);
+        let graphics = QemuGraphics::new(GraphicsDriver::Vga);
         assert_eq!(graphics.to_qemu_args(), vec!["-vga", "std"]);
     }
 

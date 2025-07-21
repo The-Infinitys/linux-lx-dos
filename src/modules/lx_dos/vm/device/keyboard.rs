@@ -11,7 +11,7 @@ pub struct QemuKeyboard {
 pub enum KeyboardModel {
     PS2,
     VirtIO,
-    USB,
+    Usb,
 }
 
 impl QemuKeyboard {
@@ -25,7 +25,7 @@ impl QemuArgs for QemuKeyboard {
         match self.model {
             KeyboardModel::PS2 => vec!["-device".to_string(), "ps2-kbd".to_string()],
             KeyboardModel::VirtIO => vec!["-device".to_string(), "virtio-keyboard".to_string()],
-            KeyboardModel::USB => vec!["-device".to_string(), "usb-kbd".to_string()],
+            KeyboardModel::Usb => vec!["-device".to_string(), "usb-kbd".to_string()],
         }
     }
 }
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_keyboard_usb() {
-        let keyboard = QemuKeyboard::new(KeyboardModel::USB);
+        let keyboard = QemuKeyboard::new(KeyboardModel::Usb);
         assert_eq!(keyboard.to_qemu_args(), vec!["-device", "usb-kbd"]);
     }
 }

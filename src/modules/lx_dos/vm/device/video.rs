@@ -9,9 +9,9 @@ pub struct QemuVideo {
 
 #[derive(Debug)]
 pub enum VideoDisplay {
-    SDL,
-    GTK,
-    VNC { port: u16 },
+    Sdl,
+    Gtk,
+    Vnc { port: u16 },
 }
 
 impl QemuVideo {
@@ -23,9 +23,9 @@ impl QemuVideo {
 impl QemuArgs for QemuVideo {
     fn to_qemu_args(&self) -> Vec<String> {
         match &self.display {
-            VideoDisplay::SDL => vec!["-display".to_string(), "sdl".to_string()],
-            VideoDisplay::GTK => vec!["-display".to_string(), "gtk".to_string()],
-            VideoDisplay::VNC { port } => vec!["-vnc".to_string(), format!(":{}", port - 5900)],
+            VideoDisplay::Sdl => vec!["-display".to_string(), "sdl".to_string()],
+            VideoDisplay::Gtk => vec!["-display".to_string(), "gtk".to_string()],
+            VideoDisplay::Vnc { port } => vec!["-vnc".to_string(), format!(":{}", port - 5900)],
         }
     }
 }
@@ -36,19 +36,19 @@ mod tests {
 
     #[test]
     fn test_video_sdl() {
-        let video = QemuVideo::new(VideoDisplay::SDL);
+        let video = QemuVideo::new(VideoDisplay::Sdl);
         assert_eq!(video.to_qemu_args(), vec!["-display", "sdl"]);
     }
 
     #[test]
     fn test_video_gtk() {
-        let video = QemuVideo::new(VideoDisplay::GTK);
+        let video = QemuVideo::new(VideoDisplay::Gtk);
         assert_eq!(video.to_qemu_args(), vec!["-display", "gtk"]);
     }
 
     #[test]
     fn test_video_vnc() {
-        let video = QemuVideo::new(VideoDisplay::VNC { port: 5901 });
+        let video = QemuVideo::new(VideoDisplay::Vnc { port: 5901 });
         assert_eq!(video.to_qemu_args(), vec!["-vnc", ":1"]);
     }
 }

@@ -19,7 +19,7 @@ pub enum DriveFormat {
 #[derive(Debug)]
 pub enum DriveMedia {
     Disk,
-    CDROM,
+    CdRom,
 }
 
 impl QemuDrive {
@@ -36,7 +36,7 @@ impl QemuArgs for QemuDrive {
         };
         let media_str = match self.media {
             DriveMedia::Disk => "disk",
-            DriveMedia::CDROM => "cdrom",
+            DriveMedia::CdRom => "cdrom",
         };
         vec![
             "-drive".to_string(),
@@ -72,7 +72,7 @@ mod tests {
         let drive = QemuDrive::new(
             PathBuf::from("/path/to/cdrom.iso"),
             DriveFormat::Raw,
-            DriveMedia::CDROM,
+            DriveMedia::CdRom,
         );
         assert_eq!(
             drive.to_qemu_args(),

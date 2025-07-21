@@ -11,7 +11,7 @@ pub struct QemuAudio {
 pub enum AudioModel {
     AC97,
     SB16,
-    HDA,
+    Hda,
 }
 
 impl QemuAudio {
@@ -25,7 +25,7 @@ impl QemuArgs for QemuAudio {
         match self.model {
             AudioModel::AC97 => vec!["-soundhw".to_string(), "ac97".to_string()],
             AudioModel::SB16 => vec!["-soundhw".to_string(), "sb16".to_string()],
-            AudioModel::HDA => vec!["-soundhw".to_string(), "hda".to_string()],
+            AudioModel::Hda => vec!["-soundhw".to_string(), "hda".to_string()],
         }
     }
 }
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_audio_hda() {
-        let audio = QemuAudio::new(AudioModel::HDA);
+        let audio = QemuAudio::new(AudioModel::Hda);
         assert_eq!(audio.to_qemu_args(), vec!["-soundhw", "hda"]);
     }
 }
