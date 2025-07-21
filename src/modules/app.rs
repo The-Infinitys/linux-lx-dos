@@ -4,6 +4,7 @@ use crate::utils::args::Args;
 use crate::utils::args::Commands;
 use crate::LxDosError;
 pub mod gui;
+mod run;
 #[derive(Default, Debug)]
 pub struct App {
     pub lx_dos: LxDos,
@@ -19,5 +20,8 @@ impl App {
             Commands::Welcome => command::welcome(),
             Commands::Run => command::run(),
         }
+    }
+    pub fn run(&self) -> Result<(), LxDosError> {
+        run::run(self)
     }
 }
