@@ -2,6 +2,7 @@
 name = "linux-lx-dos"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [dependencies]
 clap = { version = "4.5.41", features = ["derive"] }
@@ -12,3 +13,7 @@ log = "0.4.27"
 sysinfo = "0.36.0"
 thiserror = "2.0.12"
 tray-icon = { version = "0.21.0" }
+
+[build-dependencies]
+bindgen = "0.72.0"
+cmake = "0.1.54"
