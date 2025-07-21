@@ -8,7 +8,6 @@ fn main() {
     // Generate bindings for qt-tray
     let bindings = bindgen::Builder::default()
         .header("lib/qt-tray/src/lib.hpp")
-        .header("lib/qt-tray/src/modules/tray.hpp")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
