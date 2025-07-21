@@ -21,7 +21,7 @@ impl App {
             Commands::Run => command::run(),
         }
     }
-    pub fn run(&self) -> Result<(), LxDosError> {
+    pub fn run(&mut self) -> Result<(), LxDosError> {
         run::run(self)
     }
 }

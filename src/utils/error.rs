@@ -1,4 +1,3 @@
-
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -7,4 +6,10 @@ pub enum LxDosError {
     Io(#[from] std::io::Error),
     #[error("{0}")]
     Message(String),
+    #[error("{0}")]
+    TrayIcon(#[from] tray_icon::Error),
+    #[error("{0}")]
+    TrayIconMenu(#[from] tray_icon::menu::Error),
+    #[error("{0}")]
+    Crossbeam(#[from] crossbeam_channel::RecvError),
 }

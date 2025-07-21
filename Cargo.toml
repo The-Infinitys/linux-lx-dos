@@ -5,8 +5,10 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.41", features = ["derive"] }
+crossbeam-channel = "0.5.15"
 env_logger = "0.11.8"
 gtk = { version = "0.10.0", package = "gtk4", features = ["v4_18"] }
 log = "0.4.27"
 sysinfo = "0.36.0"
 thiserror = "2.0.12"
+tray-icon = { version = "0.21.0" }
