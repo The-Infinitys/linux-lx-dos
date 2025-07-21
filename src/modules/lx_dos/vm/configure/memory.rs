@@ -59,18 +59,18 @@ impl FromStr for QemuMemory {
             if let Ok(relative) = f64::from_str(relative_str) {
                 if (0.0..=100.0).contains(&relative) {
                     let relative = relative / 100.0;
-                    return Ok(Self {
+                    Ok(Self {
                         absolute: None,
                         relative: Some(relative),
-                    });
+                    })
                 } else {
-                    return Err(format!(
+                    Err(format!(
                         "{} is an invalid percentage. It must be between 0 and 100.",
                         relative
-                    ));
+                    ))
                 }
             } else {
-                return Err(format!("Couldn't convert '{}' as a percentage.", s));
+                Err(format!("Couldn't convert '{}' as a percentage.", s))
             }
         } else {
             // それ以外の場合は、絶対値として処理する。xxG, xxM, xxK, xxB を処理するようにする。
@@ -103,15 +103,15 @@ impl FromStr for QemuMemory {
                             s.chars().last().unwrap_or(' ')
                         )
                     })?;
-                return Ok(Self {
+                Ok(Self {
                     absolute: Some(absolute),
                     relative: None,
-                });
+                })
             } else {
-                return Err(format!(
+                Err(format!(
                     "Couldn't convert '{}' as an absolute memory value.",
                     s
-                ));
+                ))
             }
         }
     }

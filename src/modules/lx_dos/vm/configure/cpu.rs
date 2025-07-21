@@ -73,21 +73,21 @@ impl FromStr for QemuCpu {
             if let Ok(relative) = f64::from_str(relative_str) {
                 if (0.0..=100.0).contains(&relative) {
                     let relative = relative / 100.0;
-                    return Ok(Self {
+                    Ok(Self {
                         cores: QemuCpuCores {
                             relative: Some(relative),
                             absolute: None,
                         },
                         model: "host".to_string(),
-                    });
+                    })
                 } else {
-                    return Err(format!(
+                    Err(format!(
                         "{} is an invalid percentage. It must be between 0 and 100.",
                         relative
-                    ));
+                    ))
                 }
             } else {
-                return Err(format!("Couldn't convert '{}' as a percentage.", s));
+                Err(format!("Couldn't convert '{}' as a percentage.", s))
             }
         } else if let Ok(value) = usize::from_str(s.as_str()) {
             // 絶対値 (例: "4" コア) として処理する。

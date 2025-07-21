@@ -11,6 +11,7 @@ pub trait QemuArgs {
 }
 
 #[derive(Debug)]
+#[derive(Default)]
 pub struct QemuSystem {
     pub arch: Architecture,
     pub mem: QemuMemory,
@@ -18,16 +19,6 @@ pub struct QemuSystem {
     pub devices: Vec<QemuDevice>,
 }
 
-impl Default for QemuSystem {
-    fn default() -> Self {
-        Self {
-            arch: Architecture::default(),
-            mem: QemuMemory::default(),
-            cpu: QemuCpu::default(),
-            devices: Vec::new(),
-        }
-    }
-}
 
 impl QemuArgs for QemuSystem {
     fn to_qemu_args(&self) -> Vec<String> {
