@@ -24,7 +24,11 @@ pub enum DriveMedia {
 
 impl QemuDrive {
     pub fn new(file: PathBuf, format: DriveFormat, media: DriveMedia) -> Self {
-        Self { file, format, media }
+        Self {
+            file,
+            format,
+            media,
+        }
     }
 }
 

@@ -45,13 +45,34 @@ impl QemuArgs for QemuDevice {
 impl fmt::Debug for QemuDevice {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            QemuDevice::Audio(device) => f.debug_struct("QemuDevice::Audio").field("device", device).finish(),
-            QemuDevice::Usb(device) => f.debug_struct("QemuDevice::Usb").field("device", device).finish(),
-            QemuDevice::Keyboard(device) => f.debug_struct("QemuDevice::Keyboard").field("device", device).finish(),
-            QemuDevice::Mouse(device) => f.debug_struct("QemuDevice::Mouse").field("device", device).finish(),
-            QemuDevice::Graphics(device) => f.debug_struct("QemuDevice::Graphics").field("device", device).finish(),
-            QemuDevice::Video(device) => f.debug_struct("QemuDevice::Video").field("device", device).finish(),
-            QemuDevice::Drive(device) => f.debug_struct("QemuDevice::Drive").field("device", device).finish(),
+            QemuDevice::Audio(device) => f
+                .debug_struct("QemuDevice::Audio")
+                .field("device", device)
+                .finish(),
+            QemuDevice::Usb(device) => f
+                .debug_struct("QemuDevice::Usb")
+                .field("device", device)
+                .finish(),
+            QemuDevice::Keyboard(device) => f
+                .debug_struct("QemuDevice::Keyboard")
+                .field("device", device)
+                .finish(),
+            QemuDevice::Mouse(device) => f
+                .debug_struct("QemuDevice::Mouse")
+                .field("device", device)
+                .finish(),
+            QemuDevice::Graphics(device) => f
+                .debug_struct("QemuDevice::Graphics")
+                .field("device", device)
+                .finish(),
+            QemuDevice::Video(device) => f
+                .debug_struct("QemuDevice::Video")
+                .field("device", device)
+                .finish(),
+            QemuDevice::Drive(device) => f
+                .debug_struct("QemuDevice::Drive")
+                .field("device", device)
+                .finish(),
         }
     }
 }

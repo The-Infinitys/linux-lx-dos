@@ -10,7 +10,10 @@ pub struct QemuUsb {
 
 impl QemuUsb {
     pub fn new(enable: bool, host_device: Option<String>) -> Self {
-        Self { enable, host_device }
+        Self {
+            enable,
+            host_device,
+        }
     }
 }
 
@@ -46,7 +49,11 @@ mod tests {
         let usb = QemuUsb::new(true, Some("/dev/bus/usb/001/002".to_string()));
         assert_eq!(
             usb.to_qemu_args(),
-            vec!["-usb", "-device", "usb-host,hostdevice=/dev/bus/usb/001/002"]
+            vec![
+                "-usb",
+                "-device",
+                "usb-host,hostdevice=/dev/bus/usb/001/002"
+            ]
         );
     }
 }

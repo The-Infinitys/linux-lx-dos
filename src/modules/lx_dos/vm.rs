@@ -10,15 +10,13 @@ pub trait QemuArgs {
     fn to_qemu_args(&self) -> Vec<String>;
 }
 
-#[derive(Debug)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct QemuSystem {
     pub arch: Architecture,
     pub mem: QemuMemory,
     pub cpu: QemuCpu,
     pub devices: Vec<QemuDevice>,
 }
-
 
 impl QemuArgs for QemuSystem {
     fn to_qemu_args(&self) -> Vec<String> {
