@@ -1119,6 +1119,7 @@ dependencies = [
  "env_logger",
  "gtk4",
  "log",
+ "pkg-config",
  "sysinfo",
  "thiserror 2.0.12",
  "tray-icon",

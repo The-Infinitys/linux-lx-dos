@@ -17,3 +17,4 @@ tray-icon = { version = "0.21.0" }
 [build-dependencies]
 bindgen = "0.72.0"
 cmake = "0.1.54"
+pkg-config = "0.3.29"
