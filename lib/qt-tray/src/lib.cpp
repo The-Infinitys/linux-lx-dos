@@ -1,7 +1,7 @@
 #include "lib.hpp"
 #include <QAction>
 #include <QCoreApplication>
-
+#include <QObject>
 extern "C" {
 
 qt_tray::QtTray* create_qt_tray() {

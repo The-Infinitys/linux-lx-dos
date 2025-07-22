@@ -2,11 +2,13 @@ cmake_minimum_required(VERSION 3.16)
 
 project(qt-tray VERSION 0.1 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(ENABLE_LINTER "Enable clang-tidy linter" ON)
 option(ENABLE_FORMATTER "Enable clang-format formatter" ON)
+
+set(CMAKE_AUTOMOC ON)
 
 if(ENABLE_LINTER)
     find_program(CLANG_TIDY clang-tidy)
