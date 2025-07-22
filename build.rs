@@ -7,7 +7,7 @@ fn main() {
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
 
     // staticライブラリとして他に利用するライブラリはなし
-    println!("cargo:rustc-link-lib=static=qt-lx-dos");
+    println!("cargo:rustc-link-lib=static=qt-tray");
 
     // C++ソースコードの場合は必ずこれを追加すること
     println!("cargo:rustc-link-lib=dylib=stdc++");
