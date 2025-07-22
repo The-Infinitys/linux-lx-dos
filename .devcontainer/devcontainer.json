@@ -1,12 +1,21 @@
 {
   "image": "mcr.microsoft.com/devcontainers/universal:2",
   "features": {
-    "ghcr.io/devcontainers/features/desktop-lite:1": {}
-  },
-  "forwardPorts": [6080],
-  "portsAttributes": {
-    "6080": {
-      "label": "desktop"
+    "ghcr.io/devcontainers/features/desktop-lite:1": {
+      "version": "latest",
+      "noVncVersion": "1.6.0",
+      "password": "noPassword",
+      "webPort": "6080",
+      "vncPort": "5901"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "latest",
+      "profile": "default",
+      "targets": "aarch64-unknown-linux-gnu",
+      "components": "rust-analyzer,rust-src,rustfmt,clippy"
+    },
+    "ghcr.io/bascodes/devcontainer-features/desktop-novnc:0": {
+      "version": "1.2.0"
     }
   }
 }

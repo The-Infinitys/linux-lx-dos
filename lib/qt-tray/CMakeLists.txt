@@ -10,7 +10,6 @@ qt_standard_project_setup()
 
 add_library(qt-tray STATIC
         src/lib.cpp
-        src/modules/tray.cpp
 )
 target_include_directories(qt-tray PUBLIC src)
 target_link_libraries(qt-tray PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
