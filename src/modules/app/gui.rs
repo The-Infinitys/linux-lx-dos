@@ -9,7 +9,6 @@ use gtk::{
     glib::ExitCode,
     Application, ApplicationWindow, CssProvider, Settings,
 };
-
 use crate::qt6::{self, QtAppEvent};
 
 const APP_ID: &str = "org.lx-dos.Main";
@@ -66,10 +65,10 @@ impl Gui<'_> {
         self.gtk.run()
     }
 
-    pub fn run_qt_app(&self) -> Result<(), crate::LxDosError> {
+    pub fn run_qt_app(&mut self) -> Result<(), crate::LxDosError> {
         // Initialize tray and add menu items
-        self.qt.add_tray_menu_item("Open", 1001)?;
-        self.qt.add_tray_menu_item("Exit", 1002)?;
+        self.qt.add_tray_menu_item("Open", "open_menu_item")?;
+        self.qt.add_tray_menu_item("Exit", "exit_menu_item")?;
         let qt_app_instance = self.qt.start()?;
 
         // Poll for events in the main thread (or another dedicated thread)
@@ -85,12 +84,20 @@ impl Gui<'_> {
                         QtAppEvent::TrayDoubleClicked => {
                             println!("Tray icon double-clicked!");
                         }
-                        QtAppEvent::MenuItemClicked(id) => {
-                            println!("Menu item clicked with ID: {}", id);
-                            if id == 1002 {
-                                // Exit menu item
-                                qt_app_instance.quit();
-                                break;
+                        QtAppEvent::MenuItemClicked(id_str) => {
+                            println!("Menu item clicked with ID: {}", id_str);
+                            match id_str.as_str() {
+                                "exit_menu_item" => {
+                                    qt_app_instance.quit();
+                                    break;
+                                }
+                                "open_menu_item" => {
+                                    // Handle open menu item click
+                                    println!("Open menu item clicked!");
+                                }
+                                _ => {
+                                    println!("Unknown menu item clicked: {}", id_str);
+                                }
                             }
                         }
                     }

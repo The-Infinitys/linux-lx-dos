@@ -29,7 +29,7 @@ pub enum QtAppEvent {
     /// The system tray icon was double-clicked.
     TrayDoubleClicked,
     /// A menu item in the system tray was clicked, with the given ID.
-    MenuItemClicked(i32),
+    MenuItemClicked(String),
 }
 
 // ★ここから新しいラッパー型の定義★
@@ -77,7 +77,11 @@ impl QtAppInstance {
             bind::AppEventType_None => Ok(QtAppEvent::None),
             bind::AppEventType_TrayClicked => Ok(QtAppEvent::TrayClicked),
             bind::AppEventType_TrayDoubleClicked => Ok(QtAppEvent::TrayDoubleClicked),
-            bind::AppEventType_MenuItemClicked => Ok(QtAppEvent::MenuItemClicked(event.menu_id)),
+            bind::AppEventType_MenuItemClicked => {
+                let c_str = unsafe { CString::from_raw(event.menu_id_str as *mut c_char) };
+                let rust_str = c_str.to_string_lossy().into_owned();
+                Ok(QtAppEvent::MenuItemClicked(rust_str))
+            },
             _ => Err(Qt6Error::PollEventError("Unknown event type".to_string())),
         }
     }
@@ -184,11 +188,12 @@ impl<'a> QtApp<'a> {
     }
 
     /// Adds a menu item to the system tray icon's context menu.
-    pub fn add_tray_menu_item(&self, text: &str, id: i32) -> Result<(), Qt6Error> {
+    pub fn add_tray_menu_item(&self, text: &str, id: &str) -> Result<(), Qt6Error> {
         let c_text = CString::new(text)?;
+        let c_id = CString::new(id)?;
         unsafe {
             // SafeQtAppHandleから生ポインタを取り出す
-            bind::add_tray_menu_item(self.handle.as_ptr(), c_text.as_ptr(), id);
+            bind::add_tray_menu_item(self.handle.as_ptr(), c_text.as_ptr(), c_id.as_ptr());
         }
         Ok(())
     }

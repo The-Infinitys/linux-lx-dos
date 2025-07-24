@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <QDebug> // Add for debugging
 
 // --- Internal C++ Implementation ---
 
@@ -28,60 +29,103 @@ public:
     }
 
     int run(int argc, char* argv[]) {
-        // The QApplication object is now managed by Qt's object tree.
+        qDebug() << "QtAppWrapper::run started.";
         app = new QApplication(argc, argv);
+        qDebug() << "QApplication created.";
 
         if (!appId.empty()) {
             app->setApplicationName(QString::fromStdString(appId));
+            qDebug() << "Application ID set to:" << QString::fromStdString(appId);
         }
 
         QIcon appIcon;
         if (!iconData.isEmpty()) {
             QPixmap pixmap;
-            pixmap.loadFromData(iconData, iconFormat.c_str());
-            appIcon = QIcon(pixmap);
-            app->setWindowIcon(appIcon);
+            if (pixmap.loadFromData(iconData, iconFormat.c_str())) {
+                appIcon = QIcon(pixmap);
+                app->setWindowIcon(appIcon);
+                qDebug() << "Application icon loaded and set.";
+            } else {
+                qWarning() << "Failed to load application icon from data. Format:" << iconFormat.c_str();
+            }
+        } else {
+            qDebug() << "No icon data provided.";
         }
 
         if (shouldInitTray) {
+            qDebug() << "Tray initialization requested.";
             if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+                qWarning() << "System tray is not available on this system.";
                 return -1; // System tray is not available
             }
+            qDebug() << "System tray is available.";
 
-            // The tray and menu are also managed by Qt's object tree.
             menu = new QMenu();
             tray = new QSystemTrayIcon(appIcon);
             tray->setContextMenu(menu);
-            tray->show();
+            qDebug() << "Tray icon and menu created and linked.";
 
             QObject::connect(tray, &QSystemTrayIcon::activated, [this](QSystemTrayIcon::ActivationReason reason) {
-                if (reason == QSystemTrayIcon::Trigger) {
-                    event_queue.push_back({AppEventType::TrayClicked, 0});
+                if (reason == QSystemTrayIcon::Context) {
+                    qDebug() << "Tray icon context menu activated (right-click).";
+                } else if (reason == QSystemTrayIcon::Trigger) {
+                    qDebug() << "Tray icon triggered (left-click).";
+                    event_queue.push_back({AppEventType::TrayClicked, nullptr});
                 } else if (reason == QSystemTrayIcon::DoubleClick) {
-                    event_queue.push_back({AppEventType::TrayDoubleClicked, 0});
+                    qDebug() << "Tray icon double-clicked.";
+                    event_queue.push_back({AppEventType::TrayDoubleClicked, nullptr});
                 }
             });
+            tray->show();
+            qDebug() << "Tray icon shown.";
+
+            // Add pending menu items after QApplication and QMenu are ready
+            for (const auto& item : pending_menu_items) {
+                addTrayMenuItem(item.first, item.second);
+            }
+            pending_menu_items.clear(); // Clear the pending list
+        } else {
+            qDebug() << "Tray initialization not requested.";
         }
 
+        qDebug() << "Starting QApplication event loop...";
         return app->exec();
     }
 
     AppEvent pollEvent() {
         if (event_queue.empty()) {
-            return {AppEventType::None, 0};
+            return {AppEventType::None, nullptr};
         }
         AppEvent event = event_queue.front();
         event_queue.erase(event_queue.begin());
         return event;
     }
 
-    void addTrayMenuItem(const std::string& text, int id) {
-        if (menu) {
-            QAction* action = menu->addAction(QString::fromStdString(text));
-            QObject::connect(action, &QAction::triggered, [this, id]() {
-                event_queue.push_back({AppEventType::MenuItemClicked, id});
-            });
+    void addTrayMenuItem(const std::string& text, const std::string& id_str) {
+        qDebug() << "Attempting to add tray menu item:" << QString::fromStdString(text) << "with ID:" << QString::fromStdString(id_str);
+        if (!app) { // If QApplication is not yet created, store for later
+            pending_menu_items.push_back({text, id_str});
+            qDebug() << "QApplication not yet created, pending menu item.";
+            return;
         }
+
+        if (!menu) {
+            // If menu is null, create it now. This handles cases where menu items are added before run().
+            menu = new QMenu();
+            if (tray) {
+                tray->setContextMenu(menu);
+                qDebug() << "Created new menu and set it to tray.";
+            }
+        }
+
+        QAction* action = menu->addAction(QString::fromStdString(text));
+        QObject::connect(action, &QAction::triggered, [this, id_str]() {
+            qDebug() << "Menu item triggered:" << QString::fromStdString(id_str) << ", adding to event queue.";
+            // Duplicate the string so it can be owned by Rust and freed later
+            char* id_cstr = strdup(id_str.c_str());
+            event_queue.push_back({AppEventType::MenuItemClicked, id_cstr});
+        });
+        qDebug() << "Successfully added tray menu item.";
     }
 
     void quitApp() {
@@ -97,6 +141,7 @@ private:
     std::string iconFormat;
     bool shouldInitTray = false;
     std::vector<AppEvent> event_queue;
+    std::vector<std::pair<std::string, std::string>> pending_menu_items; // New: To store menu items added before run()
 
     // Qt Objects - Let Qt manage their lifetime.
     QMenu* menu = nullptr;
@@ -147,7 +192,7 @@ AppEvent poll_event(QtAppHandle* handle) {
     if (handle && handle->impl) {
         return handle->impl->pollEvent();
     }
-    return {AppEventType::None, 0};
+    return {AppEventType::None, nullptr};
 }
 
 void quit_qt_app(QtAppHandle* handle) {
@@ -166,11 +211,14 @@ void cleanup_qt_app(QtAppHandle* handle) {
     }
 }
 
-void add_tray_menu_item(QtAppHandle* handle, const char* text, int id) {
+void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id) {
     if (handle && handle->impl) {
         handle->impl->addTrayMenuItem(text, id);
     }
 }
 
-} // extern "C"
+void free_char_ptr(const char* ptr) {
+    free((void*)ptr);
+}
 
+} // extern "C"

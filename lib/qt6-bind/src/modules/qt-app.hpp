@@ -20,7 +20,7 @@ enum class AppEventType {
 // Struct to hold event data
 typedef struct {
     AppEventType type;
-    int menu_id; // For MenuItemClicked events
+    const char* menu_id_str; // For MenuItemClicked events, now a string
 } AppEvent;
 
 /**
@@ -62,12 +62,6 @@ int run_qt_app(QtAppHandle* handle, int argc, char* argv[]);
 void quit_qt_app(QtAppHandle* handle);
 
 /**
- * @brief Quits the Qt application event loop.
- * This can be called from any thread to signal the Qt event loop to exit.
- */
-void quit_qt_app(QtAppHandle* handle);
-
-/**
  * @brief Polls for the next event from the Qt application.
  */
 AppEvent poll_event(QtAppHandle* handle);
@@ -84,7 +78,12 @@ void cleanup_qt_app(QtAppHandle* handle);
  * @param text The text to display for the menu item.
  * @param id A unique integer ID for the menu item, used to identify clicks.
  */
-void add_tray_menu_item(QtAppHandle* handle, const char* text, int id);
+void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id);
+
+/**
+ * @brief Frees a character pointer allocated by the C++ side.
+ */
+void free_char_ptr(const char* ptr);
 
 #ifdef __cplusplus
 }
