@@ -26,10 +26,6 @@ add_executable(qt6-bind-exec src/main.cpp)
 target_link_libraries(qt6-bind-exec PRIVATE qt6-bind Qt${QT_VERSION_MAJOR}::Widgets)
 target_include_directories(qt6-bind-exec PRIVATE src) # Ensure src/main.cpp can find headers from src/
 
-add_executable(test-qt-widget src/tests/test-qt-widget.cpp)
-target_link_libraries(test-qt-widget PRIVATE qt6-bind Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Core)
-target_include_directories(test-qt-widget PRIVATE src)
-
 # ---
 include(GNUInstallDirs)
 install(TARGETS qt6-bind
