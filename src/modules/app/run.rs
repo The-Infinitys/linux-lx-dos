@@ -3,5 +3,5 @@ use crate::LxDosError;
 
 pub fn run(app: &mut App) -> Result<(), LxDosError> {
     println!("{:#?}", app);
-    Ok(())
+    app.gui.run_qt_app()
 }

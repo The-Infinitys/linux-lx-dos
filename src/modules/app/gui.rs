@@ -29,7 +29,9 @@ impl Default for Gui<'_> {
             qt: qt6::QtApp::new()
                 .with_id(APP_ID)
                 .expect("Failed to build QtApp")
-                .with_tray(),
+                .with_tray()
+                .with_icon(include_bytes!("../../../public/icon.svg"), "SVG")
+                .expect("Failed to insert icon"),
         }
     }
 }
@@ -68,7 +70,6 @@ impl Gui<'_> {
         // Initialize tray and add menu items
         self.qt.add_tray_menu_item("Open", 1001)?;
         self.qt.add_tray_menu_item("Exit", 1002)?;
-
         let qt_app_instance = self.qt.start()?;
 
         // Poll for events in the main thread (or another dedicated thread)
