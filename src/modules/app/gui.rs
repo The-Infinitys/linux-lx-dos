@@ -10,23 +10,29 @@ use gtk::{
     Application, ApplicationWindow, CssProvider, Settings,
 };
 
+use crate::qt6;
+
 const APP_ID: &str = "org.lx-dos.Main";
 
-#[derive(Debug, Clone)]
-pub struct Gui {
+#[derive(Debug)]
+pub struct Gui<'a> {
     gtk: Application,
+    qt: qt6::QtApp<'a>,
 }
-impl Default for Gui {
+impl Default for Gui<'_> {
     fn default() -> Self {
         Gui {
             gtk: Application::builder()
                 .application_id(APP_ID)
                 .flags(ApplicationFlags::HANDLES_OPEN)
                 .build(),
+            qt: qt6::QtApp::new()
+                .with_id(APP_ID)
+                .expect("Failed to build QtApp"),
         }
     }
 }
-impl Gui {
+impl Gui<'_> {
     pub fn connect_activate<F: Fn(&Application) + 'static>(&self, f: F) {
         self.gtk.connect_activate(f);
     }
