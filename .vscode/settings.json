@@ -1,5 +1,5 @@
 {
-    "cmake.sourceDirectory": "/home/the-infinitys/github/linux-lx-dos/lib/qt-lx-dos",
+    "cmake.sourceDirectory": "/home/the-infinitys/github/linux-lx-dos/lib/qt6-bind",
     "files.associations": {
         "*.vue": "vue",
         "*.svg": "html",
