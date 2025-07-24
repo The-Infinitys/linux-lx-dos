@@ -50,6 +50,7 @@ unsafe impl Send for SafeQtAppHandle {}
 // unsafe impl Sync for SafeQtAppHandle {} // If you need to share references across threads
 
 impl SafeQtAppHandle {
+    /// # Safety
     /// Creates a new `SafeQtAppHandle` from a raw pointer.
     /// This function is unsafe because the caller must ensure the pointer is valid.
     pub unsafe fn new(ptr: *mut bind::QtAppHandle) -> Self {
@@ -173,7 +174,7 @@ impl<'a> QtApp<'a> {
             bind::set_app_icon_from_data(
                 self.handle.as_ptr(),
                 data.as_ptr(),
-                data.len() as usize,
+                data.len(),
                 c_format.as_ptr(),
             );
         }
