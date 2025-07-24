@@ -118,6 +118,7 @@ pub struct QtApp<'a> {
     pub handle: SafeQtAppHandle,
     // Use a phantom lifetime to tie the handle to this struct's lifetime.
     _marker: PhantomData<&'a ()>,
+    has_started: bool,
 }
 
 impl<'a> std::fmt::Debug for QtApp<'a> {
@@ -149,6 +150,7 @@ impl<'a> QtApp<'a> {
         Self {
             handle: unsafe { SafeQtAppHandle::new(handle) },
             _marker: PhantomData,
+            has_started: false,
         }
     }
 
@@ -203,7 +205,11 @@ impl<'a> QtApp<'a> {
 
     /// Starts the Qt application event loop in a new thread.
     /// Returns a `QtAppInstance` which can be used to interact with the running app.
-    pub fn start(&self) -> Result<QtAppInstance, Qt6Error> {
+    pub fn start(&mut self) -> Result<QtAppInstance, Qt6Error> {
+        if self.has_started {
+            return Err(Qt6Error::QtInstanceError);
+        }
+        self.has_started = true;
         // handleはSafeQtAppHandle型になったので、そのまま移動できる
         let handle = self.handle;
         // Prevent `drop` from being called on `self` which would clean up the handle
