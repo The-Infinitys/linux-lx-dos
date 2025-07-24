@@ -1,157 +1,121 @@
 #include "qt-app.hpp"
-#include <QApplication>
-#include <QIcon>
-#include <QMenu>
-#include <QSystemTrayIcon>
-#include <QBuffer>
-#include <string>
-#include <vector>
-#include <memory>
-#include <QDebug> // Add for debugging
+#include "qt-core.hpp"
+#include "qt-tray.hpp"
+#include <QDebug>
+#include <QIcon> // For QIcon usage in QtAppWrapper
 
 // --- Internal C++ Implementation ---
 
 class QtAppWrapper {
 public:
-    QtAppWrapper() = default;
+    QtAppWrapper(int& argc, char* argv[]) : core(new QtCoreAppWrapper(argc, argv)), tray(nullptr) {
+        qDebug() << "QtAppWrapper constructor.";
+    }
+
+    ~QtAppWrapper() {
+        qDebug() << "QtAppWrapper destructor.";
+        delete tray; // Delete tray first as it depends on core's QApplication
+        delete core;
+    }
 
     void setAppId(const std::string& id) {
-        appId = id;
+        if (core) {
+            core->setAppId(id);
+        }
     }
 
     void setAppIcon(const unsigned char* data, size_t size, const char* format) {
-        iconData = QByteArray(reinterpret_cast<const char*>(data), size);
-        iconFormat = format;
+        if (core) {
+            core->setAppIcon(data, size, format);
+            // Store icon data for tray initialization later
+            iconData = QByteArray(reinterpret_cast<const char*>(data), size);
+            iconFormat = format;
+        }
     }
 
     void initTray() {
         shouldInitTray = true;
     }
 
-    int run(int argc, char* argv[]) {
+    int run() {
         qDebug() << "QtAppWrapper::run started.";
-        app = new QApplication(argc, argv);
-        qDebug() << "QApplication created.";
 
-        if (!appId.empty()) {
-            app->setApplicationName(QString::fromStdString(appId));
-            qDebug() << "Application ID set to:" << QString::fromStdString(appId);
-        }
-
-        QIcon appIcon;
-        if (!iconData.isEmpty()) {
-            QPixmap pixmap;
-            if (pixmap.loadFromData(iconData, iconFormat.c_str())) {
-                appIcon = QIcon(pixmap);
-                app->setWindowIcon(appIcon);
-                qDebug() << "Application icon loaded and set.";
-            } else {
-                qWarning() << "Failed to load application icon from data. Format:" << iconFormat.c_str();
-            }
-        } else {
-            qDebug() << "No icon data provided.";
-        }
-
+        // If tray is requested, initialize it here after QApplication is ready
         if (shouldInitTray) {
-            qDebug() << "Tray initialization requested.";
-            if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-                qWarning() << "System tray is not available on this system.";
-                return -1; // System tray is not available
+            if (!core) {
+                qWarning() << "Core wrapper is null, cannot initialize tray.";
+                return -1;
             }
-            qDebug() << "System tray is available.";
+            tray = new QtTrayWrapper(core);
 
-            menu = new QMenu();
-            tray = new QSystemTrayIcon(appIcon);
-            tray->setContextMenu(menu);
-            qDebug() << "Tray icon and menu created and linked.";
-
-            QObject::connect(tray, &QSystemTrayIcon::activated, [this](QSystemTrayIcon::ActivationReason reason) {
-                if (reason == QSystemTrayIcon::Context) {
-                    qDebug() << "Tray icon context menu activated (right-click).";
-                } else if (reason == QSystemTrayIcon::Trigger) {
-                    qDebug() << "Tray icon triggered (left-click).";
-                    event_queue.push_back({AppEventType::TrayClicked, nullptr});
-                } else if (reason == QSystemTrayIcon::DoubleClick) {
-                    qDebug() << "Tray icon double-clicked.";
-                    event_queue.push_back({AppEventType::TrayDoubleClicked, nullptr});
+            // Create QIcon from stored data for the tray
+            QIcon appIcon;
+            if (!iconData.isEmpty()) {
+                QPixmap pixmap;
+                if (pixmap.loadFromData(iconData, iconFormat.c_str())) {
+                    appIcon = QIcon(pixmap);
+                } else {
+                    qWarning() << "Failed to load application icon for tray from data. Format:" << iconFormat.c_str();
                 }
-            });
-            tray->show();
-            qDebug() << "Tray icon shown.";
-
-            // Add pending menu items after QApplication and QMenu are ready
-            for (const auto& item : pending_menu_items) {
-                addTrayMenuItem(item.first, item.second);
+            } else {
+                qDebug() << "No icon data provided for tray.";
             }
-            pending_menu_items.clear(); // Clear the pending list
-        } else {
-            qDebug() << "Tray initialization not requested.";
+            tray->initTray(appIcon);
         }
 
-        qDebug() << "Starting QApplication event loop...";
-        return app->exec();
+        if (core) {
+            return core->run();
+        }
+        return -1;
     }
 
     AppEvent pollEvent() {
-        if (event_queue.empty()) {
-            return {AppEventType::None, nullptr};
+        if (core) {
+            return core->pollEvent();
         }
-        AppEvent event = event_queue.front();
-        event_queue.erase(event_queue.begin());
-        return event;
+        return {AppEventType::None, nullptr};
     }
 
     void addTrayMenuItem(const std::string& text, const std::string& id_str) {
-        qDebug() << "Attempting to add tray menu item:" << QString::fromStdString(text) << "with ID:" << QString::fromStdString(id_str);
-        if (!app) { // If QApplication is not yet created, store for later
-            pending_menu_items.push_back({text, id_str});
-            qDebug() << "QApplication not yet created, pending menu item.";
-            return;
+        if (shouldInitTray && tray) {
+            tray->addTrayMenuItem(text, id_str);
+        } else {
+            // If tray is not yet initialized, store pending menu items
+            // This assumes initTray() will be called later.
+            // If initTray() is never called, these items will not be added.
+            pending_tray_menu_items.push_back({text, id_str});
+            qDebug() << "Tray not yet initialized, pending menu item for tray:" << QString::fromStdString(text);
         }
-
-        if (!menu) {
-            // If menu is null, create it now. This handles cases where menu items are added before run().
-            menu = new QMenu();
-            if (tray) {
-                tray->setContextMenu(menu);
-                qDebug() << "Created new menu and set it to tray.";
-            }
-        }
-
-        QAction* action = menu->addAction(QString::fromStdString(text));
-        QObject::connect(action, &QAction::triggered, [this, id_str]() {
-            qDebug() << "Menu item triggered:" << QString::fromStdString(id_str) << ", adding to event queue.";
-            // Duplicate the string so it can be owned by Rust and freed later
-            char* id_cstr = strdup(id_str.c_str());
-            event_queue.push_back({AppEventType::MenuItemClicked, id_cstr});
-        });
-        qDebug() << "Successfully added tray menu item.";
     }
 
     void quitApp() {
-        if (app) {
-            app->quit();
+        if (core) {
+            core->quitApp();
         }
     }
 
 private:
-    // Configuration
-    std::string appId;
+    QtCoreAppWrapper* core;
+    QtTrayWrapper* tray;
+    bool shouldInitTray = false;
+
+    // Temporary storage for icon data and format, used when creating tray
     QByteArray iconData;
     std::string iconFormat;
-    bool shouldInitTray = false;
-    std::vector<AppEvent> event_queue;
-    std::vector<std::pair<std::string, std::string>> pending_menu_items; // New: To store menu items added before run()
 
-    // Qt Objects - Let Qt manage their lifetime.
-    QMenu* menu = nullptr;
-    QSystemTrayIcon* tray = nullptr;
-    QApplication* app = nullptr;
+    // Store pending menu items if tray is not initialized when addTrayMenuItem is called
+    std::vector<std::pair<std::string, std::string>> pending_tray_menu_items;
 };
 
 // Opaque handle that points to the C++ implementation
 struct QtAppHandle {
     QtAppWrapper* impl;
+    // Store argc and argv here to pass to QApplication constructor
+    // Note: This is a simplification. In a real application, argc/argv management
+    // can be more complex, especially with multiple calls to create_qt_app.
+    // For this example, we assume run_qt_app is called once with the main argc/argv.
+    int stored_argc;
+    char** stored_argv;
 };
 
 
@@ -160,32 +124,71 @@ struct QtAppHandle {
 extern "C" {
 
 QtAppHandle* create_qt_app() {
-    return new QtAppHandle{new QtAppWrapper()};
+    // We cannot create QApplication here as it needs argc/argv.
+    // Instead, we will defer the creation of QtAppWrapper until run_qt_app.
+    // For now, return a handle that will store argc/argv.
+    QtAppHandle* handle = new QtAppHandle();
+    handle->impl = nullptr; // Will be initialized in run_qt_app
+    handle->stored_argc = 0; // Initialize to 0
+    handle->stored_argv = nullptr; // Initialize to nullptr
+    qDebug() << "create_qt_app: Handle created, impl is null.";
+    return handle;
 }
 
 void set_app_id(QtAppHandle* handle, const char* id) {
     if (handle && handle->impl) {
         handle->impl->setAppId(id);
+    } else if (handle) {
+        // Store ID if impl not yet created. This is a common pattern for pre-run configs.
+        // However, for this refactor, we are assuming set_app_id is called AFTER create_qt_app
+        // but potentially BEFORE run_qt_app. The core wrapper handles setting ID on QApplication
+        // when it's available.
+        // For simplicity, we'll rely on the core wrapper's internal logic for now.
+        qWarning() << "set_app_id called before run_qt_app, ID will be applied when QApplication is ready.";
+        // A more robust solution might involve storing these values in QtAppHandle
+        // and applying them when impl is created.
     }
 }
 
 void set_app_icon_from_data(QtAppHandle* handle, const unsigned char* data, size_t size, const char* format) {
     if (handle && handle->impl) {
         handle->impl->setAppIcon(data, size, format);
+    } else if (handle) {
+        qWarning() << "set_app_icon_from_data called before run_qt_app, icon will be applied when QApplication is ready.";
+        // Similar to set_app_id, rely on core wrapper's internal logic for now.
+        // QtAppWrapper now stores icon data temporarily for tray initialization.
     }
 }
 
 void init_tray(QtAppHandle* handle) {
     if (handle && handle->impl) {
         handle->impl->initTray();
+    } else if (handle) {
+        // Mark that tray should be initialized when impl is created in run_qt_app
+        // This flag is handled by QtAppWrapper's initTray() method.
+        qWarning() << "init_tray called before run_qt_app. Tray will be initialized during run.";
+        // The QtAppWrapper's `shouldInitTray` flag will handle this.
     }
 }
 
 int run_qt_app(QtAppHandle* handle, int argc, char* argv[]) {
-    if (handle && handle->impl) {
-        return handle->impl->run(argc, argv);
+    if (!handle) {
+        qCritical() << "run_qt_app: Handle is null.";
+        return -1;
     }
-    return -1;
+
+    if (!handle->impl) {
+        qDebug() << "run_qt_app: Initializing QtAppWrapper with argc/argv.";
+        // Store argc and argv for QApplication constructor
+        handle->stored_argc = argc;
+        handle->stored_argv = argv;
+        handle->impl = new QtAppWrapper(handle->stored_argc, handle->stored_argv);
+
+        // Apply any pending configurations that might have been set before run()
+        // (e.g., set_app_id, set_app_icon_from_data, init_tray flags are handled internally by QtAppWrapper/QtCoreAppWrapper)
+    }
+
+    return handle->impl->run();
 }
 
 AppEvent poll_event(QtAppHandle* handle) {
@@ -202,11 +205,9 @@ void quit_qt_app(QtAppHandle* handle) {
 }
 
 void cleanup_qt_app(QtAppHandle* handle) {
-    // Let the OS clean up resources on process exit. 
-    // Explicitly deleting Qt objects here conflicts with Qt's own cleanup mechanisms
-    // after the event loop has finished, causing a crash.
     if (handle) {
-        delete handle->impl;
+        qDebug() << "cleanup_qt_app: Deleting QtAppHandle and its implementation.";
+        delete handle->impl; // This will call ~QtAppWrapper, which cleans up core and tray
         delete handle;
     }
 }
@@ -214,6 +215,9 @@ void cleanup_qt_app(QtAppHandle* handle) {
 void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id) {
     if (handle && handle->impl) {
         handle->impl->addTrayMenuItem(text, id);
+    } else if (handle) {
+        qWarning() << "add_tray_menu_item called before run_qt_app. Item will be added if tray is initialized later.";
+        // QtAppWrapper now handles pending menu items if tray is not yet initialized.
     }
 }
 

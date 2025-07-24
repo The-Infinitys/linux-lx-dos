@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include "qt-core.hpp" // Include core for AppEvent and AppEventType
 
 #ifdef __cplusplus
 extern "C" {
@@ -8,20 +9,6 @@ extern "C" {
 
 // Opaque pointer to the C++ implementation
 typedef struct QtAppHandle QtAppHandle;
-
-// Enum for event types that can be polled from Rust
-enum class AppEventType {
-    None,
-    TrayClicked,
-    TrayDoubleClicked,
-    MenuItemClicked
-};
-
-// Struct to hold event data
-typedef struct {
-    AppEventType type;
-    const char* menu_id_str; // For MenuItemClicked events, now a string
-} AppEvent;
 
 /**
  * @brief Creates a new Qt application handle.
@@ -76,7 +63,7 @@ void cleanup_qt_app(QtAppHandle* handle);
  *
  * @param handle The application handle.
  * @param text The text to display for the menu item.
- * @param id A unique integer ID for the menu item, used to identify clicks.
+ * @param id A unique string ID for the menu item, used to identify clicks.
  */
 void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id);
 
