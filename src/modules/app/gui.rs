@@ -1,4 +1,5 @@
 // use gtk::prelude::*;
+use crate::qt6::{self, QtAppEvent};
 use gtk::prelude::*;
 use gtk::{
     builders::ApplicationWindowBuilder,
@@ -6,10 +7,8 @@ use gtk::{
         prelude::{ApplicationExt, ApplicationExtManual},
         ApplicationFlags, File,
     },
-    glib::ExitCode,
     Application, ApplicationWindow, CssProvider, Settings,
 };
-use crate::qt6::{self, QtAppEvent};
 
 const APP_ID: &str = "org.lx-dos.Main";
 
@@ -58,14 +57,10 @@ impl Gui<'_> {
             .application(&self.gtk)
             .title(title)
     }
-    pub fn run_with_args(&self, args: Vec<String>) {
-        self.gtk.run_with_args(&args);
-    }
-    pub fn run(&self) -> ExitCode {
-        self.gtk.run()
-    }
-
-    pub fn run_qt_app(&mut self) -> Result<(), crate::LxDosError> {
+    // pub fn run_with_args(&self, args: Vec<String>) {
+    //     self.gtk.run_with_args(&args);
+    // }
+    pub fn run(&mut self) -> Result<(), crate::LxDosError> {
         // Initialize tray and add menu items
         self.qt.add_tray_menu_item("Open", "open_menu_item")?;
         self.qt.add_tray_menu_item("Exit", "exit_menu_item")?;

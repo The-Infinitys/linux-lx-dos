@@ -18,6 +18,8 @@ pub enum Qt6Error {
     RunFailed(i32),
     #[error("Failed to poll event: {0}")]
     PollEventError(String),
+    #[error("Qt Instance has already made an didn't dropped.")]
+    QtInstanceError,
 }
 
 /// Events that can be received from the Qt application.
@@ -81,7 +83,7 @@ impl QtAppInstance {
                 let c_str = unsafe { CString::from_raw(event.menu_id_str as *mut c_char) };
                 let rust_str = c_str.to_string_lossy().into_owned();
                 Ok(QtAppEvent::MenuItemClicked(rust_str))
-            },
+            }
             _ => Err(Qt6Error::PollEventError("Unknown event type".to_string())),
         }
     }
