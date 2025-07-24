@@ -14,12 +14,13 @@ enum class AppEventType {
     None,
     TrayClicked,
     TrayDoubleClicked,
-    MenuExitClicked
+    MenuItemClicked
 };
 
 // Struct to hold event data
 typedef struct {
     AppEventType type;
+    int menu_id; // For MenuItemClicked events
 } AppEvent;
 
 /**
@@ -61,6 +62,12 @@ int run_qt_app(QtAppHandle* handle, int argc, char* argv[]);
 void quit_qt_app(QtAppHandle* handle);
 
 /**
+ * @brief Quits the Qt application event loop.
+ * This can be called from any thread to signal the Qt event loop to exit.
+ */
+void quit_qt_app(QtAppHandle* handle);
+
+/**
  * @brief Polls for the next event from the Qt application.
  */
 AppEvent poll_event(QtAppHandle* handle);
@@ -69,6 +76,15 @@ AppEvent poll_event(QtAppHandle* handle);
  * @brief Cleans up all resources associated with the handle.
  */
 void cleanup_qt_app(QtAppHandle* handle);
+
+/**
+ * @brief Adds a menu item to the system tray icon's context menu.
+ *
+ * @param handle The application handle.
+ * @param text The text to display for the menu item.
+ * @param id A unique integer ID for the menu item, used to identify clicks.
+ */
+void add_tray_menu_item(QtAppHandle* handle, const char* text, int id);
 
 #ifdef __cplusplus
 }

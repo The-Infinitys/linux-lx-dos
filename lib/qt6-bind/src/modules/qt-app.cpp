@@ -50,21 +50,15 @@ public:
 
             // The tray and menu are also managed by Qt's object tree.
             menu = new QMenu();
-            QAction* exitAction = menu->addAction("Exit");
-            QObject::connect(exitAction, &QAction::triggered, [this]() {
-                event_queue.push_back({AppEventType::MenuExitClicked});
-                QApplication::quit();
-            });
-
             tray = new QSystemTrayIcon(appIcon);
             tray->setContextMenu(menu);
             tray->show();
 
             QObject::connect(tray, &QSystemTrayIcon::activated, [this](QSystemTrayIcon::ActivationReason reason) {
                 if (reason == QSystemTrayIcon::Trigger) {
-                    event_queue.push_back({AppEventType::TrayClicked});
+                    event_queue.push_back({AppEventType::TrayClicked, 0});
                 } else if (reason == QSystemTrayIcon::DoubleClick) {
-                    event_queue.push_back({AppEventType::TrayDoubleClicked});
+                    event_queue.push_back({AppEventType::TrayDoubleClicked, 0});
                 }
             });
         }
@@ -74,11 +68,26 @@ public:
 
     AppEvent pollEvent() {
         if (event_queue.empty()) {
-            return {AppEventType::None};
+            return {AppEventType::None, 0};
         }
         AppEvent event = event_queue.front();
         event_queue.erase(event_queue.begin());
         return event;
+    }
+
+    void addTrayMenuItem(const std::string& text, int id) {
+        if (menu) {
+            QAction* action = menu->addAction(QString::fromStdString(text));
+            QObject::connect(action, &QAction::triggered, [this, id]() {
+                event_queue.push_back({AppEventType::MenuItemClicked, id});
+            });
+        }
+    }
+
+    void quitApp() {
+        if (app) {
+            app->quit();
+        }
     }
 
 private:
@@ -138,7 +147,13 @@ AppEvent poll_event(QtAppHandle* handle) {
     if (handle && handle->impl) {
         return handle->impl->pollEvent();
     }
-    return {AppEventType::None};
+    return {AppEventType::None, 0};
+}
+
+void quit_qt_app(QtAppHandle* handle) {
+    if (handle && handle->impl) {
+        handle->impl->quitApp();
+    }
 }
 
 void cleanup_qt_app(QtAppHandle* handle) {
@@ -151,4 +166,11 @@ void cleanup_qt_app(QtAppHandle* handle) {
     }
 }
 
+void add_tray_menu_item(QtAppHandle* handle, const char* text, int id) {
+    if (handle && handle->impl) {
+        handle->impl->addTrayMenuItem(text, id);
+    }
+}
+
 } // extern "C"
+

@@ -10,7 +10,7 @@ use gtk::{
     Application, ApplicationWindow, CssProvider, Settings,
 };
 
-use crate::qt6;
+use crate::qt6::{self, QtAppEvent};
 
 const APP_ID: &str = "org.lx-dos.Main";
 
@@ -28,7 +28,8 @@ impl Default for Gui<'_> {
                 .build(),
             qt: qt6::QtApp::new()
                 .with_id(APP_ID)
-                .expect("Failed to build QtApp"),
+                .expect("Failed to build QtApp")
+                .with_tray(),
         }
     }
 }
@@ -61,5 +62,46 @@ impl Gui<'_> {
     }
     pub fn run(&self) -> ExitCode {
         self.gtk.run()
+    }
+
+    pub fn run_qt_app(&self) -> Result<(), crate::LxDosError> {
+        // Initialize tray and add menu items
+        self.qt.add_tray_menu_item("Open", 1001)?;
+        self.qt.add_tray_menu_item("Exit", 1002)?;
+
+        let qt_app_instance = self.qt.start()?;
+
+        // Poll for events in the main thread (or another dedicated thread)
+        // This is a simplified example; in a real application, you'd want a more robust event loop.
+        loop {
+            match qt_app_instance.poll_event() {
+                Ok(event) => {
+                    match event {
+                        QtAppEvent::None => {}
+                        QtAppEvent::TrayClicked => {
+                            println!("Tray icon clicked!");
+                        }
+                        QtAppEvent::TrayDoubleClicked => {
+                            println!("Tray icon double-clicked!");
+                        }
+                        QtAppEvent::MenuItemClicked(id) => {
+                            println!("Menu item clicked with ID: {}", id);
+                            if id == 1002 {
+                                // Exit menu item
+                                qt_app_instance.quit();
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error polling Qt event: {}", e);
+                    break;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100)); // Prevent busy-waiting
+        }
+
+        Ok(())
     }
 }

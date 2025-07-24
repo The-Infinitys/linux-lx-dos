@@ -7,6 +7,8 @@ pub enum LxDosError {
     #[error("{0}")]
     Message(String),
     #[error("{0}")]
+    Qt6(#[from] crate::qt6::Qt6Error),
+    #[error("{0}")]
     TrayIcon(#[from] tray_icon::Error),
     #[error("{0}")]
     TrayIconMenu(#[from] tray_icon::menu::Error),
