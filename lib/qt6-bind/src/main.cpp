@@ -1,11 +1,8 @@
 #include "modules/qt-app.hpp"
-#include "modules/qt-tray.hpp"
-#include "modules/qt-widget.hpp"
 #include <vector>
 #include <string>
 #include <QDebug> // Add for debugging
 #include <QThread> // Add for QThread::msleep
-#include <QIcon>
 
 // A simple dummy SVG icon for testing using a raw string literal
 const std::string svg_icon_data = R"(
@@ -17,15 +14,9 @@ const std::string svg_icon_data = R"(
 
 int main(int argc, char* argv[]) {
     QtAppHandle* app = create_qt_app();
-    QtTrayHandle* tray = create_qt_tray();
-    QtWidgetHandle* widget = create_qt_widget();
-
-    // Initialize QApplication first
-    init_qt_application(app, argc, argv);
 
     set_app_id(app, "com.example.TestApp");
 
-    // Set app icon data (QIcon will be created inside init_qt_application)
     set_app_icon_from_data(
         app, 
         reinterpret_cast<const unsigned char*>(svg_icon_data.c_str()), 
@@ -33,31 +24,21 @@ int main(int argc, char* argv[]) {
         "SVG"
     );
 
-    // Initialize tray with the application icon
-    init_tray(tray, reinterpret_cast<const unsigned char*>(svg_icon_data.c_str()), svg_icon_data.length(), "SVG");
+    init_tray(app);
 
-    // Add some test menu items to the tray
-    add_tray_menu_item(tray, "Open", "open_menu_item");
+    // Add some test menu items
+    add_tray_menu_item(app, "Open", "open_menu_item");
     qDebug() << "Added menu item: Open";
-    add_tray_menu_item(tray, "Settings", "settings_menu_item");
+    add_tray_menu_item(app, "Settings", "settings_menu_item");
     qDebug() << "Added menu item: Settings";
-    add_tray_menu_item(tray, "Quit", "quit_menu_item");
+    add_tray_menu_item(app, "Quit", "quit_menu_item");
     qDebug() << "Added menu item: Quit";
 
-    // Set up and show a basic widget
-    set_widget_title(widget, "My Qt Widget");
-
-    // Event polling loop (for demonstration)
-    // This loop will run after the Qt event loop starts, which is not ideal for polling.
-    // A better approach would be to use Qt signals/slots or QTimer for event handling.
-    // For now, we'll keep it as is to demonstrate the API calls.
-    QThread::msleep(100); // Give Qt some time to process events
-
-    int result = run_qt_app(app);
+    int result = run_qt_app(app, argc, argv);
 
     // Event polling loop (for demonstration)
     while (true) {
-        AppEvent event = poll_event(tray);
+        AppEvent event = poll_event(app);
         if (event.type == AppEventType::MenuItemClicked) {
             qDebug() << "Menu item clicked with ID:" << event.menu_id_str;
             std::string menu_id_str(event.menu_id_str);
@@ -65,7 +46,6 @@ int main(int argc, char* argv[]) {
 
             if (menu_id_str == "open_menu_item") { // Open
                 qDebug() << "Open action triggered!";
-                show_qt_widget(widget);
             } else if (menu_id_str == "settings_menu_item") { // Settings
                 qDebug() << "Settings action triggered!";
             } else if (menu_id_str == "quit_menu_item") { // Quit
@@ -75,10 +55,8 @@ int main(int argc, char* argv[]) {
             }
         } else if (event.type == AppEventType::TrayClicked) {
             qDebug() << "Tray icon left-clicked!";
-            show_qt_widget(widget);
         } else if (event.type == AppEventType::TrayDoubleClicked) {
             qDebug() << "Tray icon double-clicked!";
-            hide_qt_widget(widget);
         } else if (event.type == AppEventType::None) {
             // No event, sleep for a short period to avoid busy-waiting
             // This is a simple example, in a real app, you might use a timer or more sophisticated event handling
@@ -87,8 +65,6 @@ int main(int argc, char* argv[]) {
     }
 
     cleanup_qt_app(app);
-    cleanup_qt_tray(tray);
-    cleanup_qt_widget(widget);
 
     return result;
 }
