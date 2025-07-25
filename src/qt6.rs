@@ -1,3 +1,4 @@
+/// src/qt6.rs
 use std::ffi::{c_char, CString};
 use std::marker::PhantomData;
 
@@ -26,6 +27,7 @@ pub enum Qt6Error {
 }
 
 /// Events that can be received from the Qt application.
+#[derive(Clone, Debug)]
 pub enum QtAppEvent {
     /// No event occurred.
     None,
@@ -98,17 +100,26 @@ impl QtAppInstance {
             bind::quit_qt_app(self.handle.as_ptr());
         }
     }
+
+    /// Returns the underlying `SafeQtAppHandle` for the Qt application.
+    pub fn get_handle(&self) -> SafeQtAppHandle {
+        self.handle
+    }
 }
 
 impl Drop for QtAppInstance {
     fn drop(&mut self) {
-        // QtAppInstanceのdropでは、スレッドのJoinを試みるが、
-        // QtAppInstanceがdropされる前にQtAppがdropされ、cleanup_qt_appが呼ばれると
-        // スレッドが既に終了している可能性がある。
-        // ここではスレッドを保持する役割のみとし、QtリソースのクリーンアップはQtApp::dropに任せる。
-        // スレッドがまだ実行中の場合、join()はブロックする可能性がある。
-        // 実際のアプリケーションでは、より優雅なシャットダウンメカニズムが必要になる場合がある。
-        // 例: quit()を呼び出した後、join()を待つなど。
+        // Qtアプリケーションのリソースをクリーンアップします。
+        // このハンドルは run_qt_app に渡されました。
+        if !self.handle.as_ptr().is_null() {
+            unsafe {
+                bind::cleanup_qt_app(self.handle.as_ptr());
+            }
+            // 二重解放を防ぐため、ハンドルを無効な状態にします
+            self.handle = unsafe { SafeQtAppHandle::new(std::ptr::null_mut()) };
+        }
+        // スレッドがまだ実行中の場合、join()はブロックする可能性があるため、
+        // ここでは明示的にjoinは呼び出しません。quit()がスレッドを終了させることを期待します。
     }
 }
 
@@ -218,7 +229,6 @@ impl<'a> QtApp<'a> {
         // `self.handle` を `std::ptr::null_mut()` に設定することで、
         // `QtApp` の `drop` がこのハンドルを二重に解放するのを防ぐ。
         self.handle = unsafe { SafeQtAppHandle::new(std::ptr::null_mut()) };
-
 
         let join_handle = std::thread::spawn(move || {
             let mut argv: Vec<*mut c_char> = Vec::new();
@@ -346,7 +356,9 @@ impl<'a> QtElement<'a> {
                     .into_owned();
                 Ok(QtElementEvent::EditingFinished(text))
             }
-            _ => Err(Qt6Error::PollEventError("Unknown element event type".to_string())),
+            _ => Err(Qt6Error::PollEventError(
+                "Unknown element event type".to_string(),
+            )),
         }
     }
 }

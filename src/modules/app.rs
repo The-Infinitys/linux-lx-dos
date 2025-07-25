@@ -6,12 +6,12 @@ use crate::LxDosError;
 pub mod gui;
 mod run;
 #[derive(Default, Debug)]
-pub struct App<'a> {
+pub struct App {
     pub lx_dos: LxDos,
-    pub gui: gui::Gui<'a>,
+    pub gui: gui::Gui,
 }
 
-impl App<'_> {
+impl App {
     pub fn exec(&self, args: Args) -> Result<(), LxDosError> {
         println!("{:#?}", self.lx_dos);
         match args.command {
