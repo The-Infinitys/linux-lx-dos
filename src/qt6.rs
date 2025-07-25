@@ -2,11 +2,14 @@ use std::ffi::{c_char, CString};
 use std::marker::PhantomData;
 
 // The bindgen-generated bindings will be included here.
+// Make sure your build.rs correctly points to qt-app.hpp for binding generation.
 #[allow(warnings)]
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
 pub mod bind {
+    // bindgenがqt-app.hppを処理して生成したバインディングをインクルード
+    // OUT_DIRはbuild.rsによって設定されます。
     include!(concat!(env!("OUT_DIR"), "/qt6-bind.rs"));
 }
 
@@ -18,7 +21,7 @@ pub enum Qt6Error {
     RunFailed(i32),
     #[error("Failed to poll event: {0}")]
     PollEventError(String),
-    #[error("Qt Instance has already made an didn't dropped.")]
+    #[error("Qt Instance has already started and wasn't dropped.")]
     QtInstanceError,
 }
 
@@ -34,7 +37,6 @@ pub enum QtAppEvent {
     MenuItemClicked(String),
 }
 
-// ★ここから新しいラッパー型の定義★
 /// A safe wrapper around `*mut bind::QtAppHandle` that asserts `Send` safety.
 /// This is necessary to satisfy Rust's Orphan Rules and explicitly state
 /// the thread-safety guarantees.
@@ -62,11 +64,9 @@ impl SafeQtAppHandle {
         self.0
     }
 }
-// ★ここまで新しいラッパー型の定義★
 
 /// Represents a running Qt application instance.
 pub struct QtAppInstance {
-    // 型をSafeQtAppHandleに変更
     handle: SafeQtAppHandle,
     _join_handle: std::thread::JoinHandle<()>, // To keep the thread alive
 }
@@ -77,10 +77,12 @@ impl QtAppInstance {
         // SafeQtAppHandleから生ポインタを取り出す
         let event = unsafe { bind::poll_event(self.handle.as_ptr()) };
         match event.type_ {
-            bind::AppEventType_None => Ok(QtAppEvent::None),
-            bind::AppEventType_TrayClicked => Ok(QtAppEvent::TrayClicked),
-            bind::AppEventType_TrayDoubleClicked => Ok(QtAppEvent::TrayDoubleClicked),
-            bind::AppEventType_MenuItemClicked => {
+            bind::AppEventType_AppEventType_None => Ok(QtAppEvent::None),
+            bind::AppEventType_AppEventType_TrayClicked => Ok(QtAppEvent::TrayClicked),
+            bind::AppEventType_AppEventType_TrayDoubleClicked => Ok(QtAppEvent::TrayDoubleClicked),
+            bind::AppEventType_AppEventType_MenuItemClicked => {
+                // C++側でstrdupされた文字列の所有権をRustが受け取り、CString::from_rawで管理する
+                // CStringのDrop実装が自動的にfree_char_ptrを呼び出すため、明示的な呼び出しは不要
                 let c_str = unsafe { CString::from_raw(event.menu_id_str as *mut c_char) };
                 let rust_str = c_str.to_string_lossy().into_owned();
                 Ok(QtAppEvent::MenuItemClicked(rust_str))
@@ -100,13 +102,13 @@ impl QtAppInstance {
 
 impl Drop for QtAppInstance {
     fn drop(&mut self) {
-        // Ensure the Qt app thread is joined when the instance is dropped.
-        // This might block if the Qt app is still running.
-        // In a real application, you might want a more graceful shutdown.
-        // For now, we just ensure the thread is cleaned up.
-        // Note: The C++ side handles cleanup of Qt objects when the app quits.
-        // We only need to ensure the thread is joined.
-        // The `cleanup_qt_app` is called when `QtApp` is dropped.
+        // QtAppInstanceのdropでは、スレッドのJoinを試みるが、
+        // QtAppInstanceがdropされる前にQtAppがdropされ、cleanup_qt_appが呼ばれると
+        // スレッドが既に終了している可能性がある。
+        // ここではスレッドを保持する役割のみとし、QtリソースのクリーンアップはQtApp::dropに任せる。
+        // スレッドがまだ実行中の場合、join()はブロックする可能性がある。
+        // 実際のアプリケーションでは、より優雅なシャットダウンメカニズムが必要になる場合がある。
+        // 例: quit()を呼び出した後、join()を待つなど。
     }
 }
 
@@ -114,8 +116,7 @@ impl Drop for QtAppInstance {
 /// This struct uses the builder pattern to set up the application.
 /// When dropped, it automatically cleans up the associated C++ resources.
 pub struct QtApp<'a> {
-    // 型をSafeQtAppHandleに変更
-    pub handle: SafeQtAppHandle,
+    handle: SafeQtAppHandle,
     // Use a phantom lifetime to tie the handle to this struct's lifetime.
     _marker: PhantomData<&'a ()>,
     has_started: bool,
@@ -131,7 +132,7 @@ impl<'a> std::fmt::Debug for QtApp<'a> {
 
 // QtAppInstanceはSafeQtAppHandleを含むので、SafeQtAppHandleがSendなら、QtAppInstanceもSendです。
 // (ただし、_join_handleがSendであることも前提です)
-unsafe impl Send for QtAppInstance {} // これは_join_handleがSendなので問題なし
+unsafe impl Send for QtAppInstance {} // _join_handleがSendなので問題なし
 
 // QtAppもSafeQtAppHandleを含むので、SafeQtAppHandleがSendなら、QtAppもSendです。
 unsafe impl<'a> Send for QtApp<'a> {}
@@ -176,7 +177,7 @@ impl<'a> QtApp<'a> {
             bind::set_app_icon_from_data(
                 self.handle.as_ptr(),
                 data.as_ptr(),
-                data.len(),
+                data.len(), // size_t に対応
                 c_format.as_ptr(),
             );
         }
@@ -186,8 +187,8 @@ impl<'a> QtApp<'a> {
     /// Initializes a system tray icon for the application.
     pub fn with_tray(self) -> Self {
         unsafe {
-            // SafeQtAppHandleから生ポインタを取り出す
-            bind::init_tray(self.handle.as_ptr());
+            // C++側の関数名に合わせて init_tray_icon を呼び出す
+            bind::init_tray_icon(self.handle.as_ptr());
         }
         self
     }
@@ -197,7 +198,7 @@ impl<'a> QtApp<'a> {
         let c_text = CString::new(text)?;
         let c_id = CString::new(id)?;
         unsafe {
-            // SafeQtAppHandleから生ポインタを取り出す
+            // C++側の関数名に合わせて add_tray_menu_item を呼び出す
             bind::add_tray_menu_item(self.handle.as_ptr(), c_text.as_ptr(), c_id.as_ptr());
         }
         Ok(())
@@ -214,10 +215,15 @@ impl<'a> QtApp<'a> {
         let handle = self.handle;
         // Prevent `drop` from being called on `self` which would clean up the handle
         // before the new thread takes ownership.
+        // `self.handle` を `std::ptr::null_mut()` に設定することで、
+        // `QtApp` の `drop` がこのハンドルを二重に解放するのを防ぐ。
+        self.handle = unsafe { SafeQtAppHandle::new(std::ptr::null_mut()) };
+
 
         let join_handle = std::thread::spawn(move || {
             let mut argv: Vec<*mut c_char> = Vec::new();
-            // SafeQtAppHandleから生ポインタを取り出す
+            // C++のrun_qt_appはargcとargvを必要とするが、ここではGUIアプリケーションなので通常は0とnullで十分
+            // 必要に応じて、実際のコマンドライン引数を渡すことも可能
             let result = unsafe { bind::run_qt_app(handle.as_ptr(), 0, argv.as_mut_ptr()) };
             if result != 0 {
                 eprintln!("Qt application exited with code: {}", result);
@@ -235,12 +241,13 @@ impl<'a> QtApp<'a> {
 
 impl<'a> Drop for QtApp<'a> {
     fn drop(&mut self) {
-        // SafeQtAppHandleから生ポインタを取り出す
+        // handleがnullでないことを確認 (start()でnull_mutに設定されている可能性があるため)
         if !self.handle.as_ptr().is_null() {
             unsafe {
+                // Qtアプリケーションのリソースをクリーンアップ
                 bind::cleanup_qt_app(self.handle.as_ptr());
             }
-            // ドロップされた後、ハンドルを無効な状態にする
+            // ドロップされた後、ハンドルを無効な状態にする（二重解放防止）
             self.handle = unsafe { SafeQtAppHandle::new(std::ptr::null_mut()) };
         }
     }

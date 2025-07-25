@@ -15,20 +15,14 @@ qt_standard_project_setup()
 
 add_library(qt6-bind STATIC
         src/lib.cpp
-        src/modules/qt-app.cpp
-        src/modules/qt-tray.cpp
         src/modules/qt-window.cpp
+        src/modules/qt-tray.cpp
+        src/modules/qt-app.cpp
 )
 target_include_directories(qt6-bind PUBLIC src)
 target_link_libraries(qt6-bind PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
-# ---
-## Add an executable for testing
-add_executable(qt6-bind-exec src/main.cpp)
-target_link_libraries(qt6-bind-exec PRIVATE qt6-bind Qt${QT_VERSION_MAJOR}::Widgets)
-target_include_directories(qt6-bind-exec PRIVATE src) # Ensure src/main.cpp can find headers from src/
 
-# ---
 include(GNUInstallDirs)
 install(TARGETS qt6-bind
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

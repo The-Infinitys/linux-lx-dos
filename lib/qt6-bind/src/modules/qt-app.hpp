@@ -1,89 +1,114 @@
 #pragma once
 
-#include <stddef.h>
+#include <stddef.h> // For size_t
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Opaque pointer to the C++ implementation
+// Qtアプリケーションの不透明なポインタ
 typedef struct QtAppHandle QtAppHandle;
 
-// Enum for event types that can be polled from Rust
-enum class AppEventType {
-    None,
-    TrayClicked,
-    TrayDoubleClicked,
-    MenuItemClicked
-};
-
-// Struct to hold event data
-typedef struct {
-    AppEventType type;
-    const char* menu_id_str; // For MenuItemClicked events, now a string
-} AppEvent;
+// Qtトレイハンドルの前方宣言 (QtAppHandleが内部で管理するため)
+typedef struct QtTrayHandle QtTrayHandle;
 
 /**
- * @brief Creates a new Qt application handle.
+ * @brief 新しいQtアプリケーションハンドルを作成します。
+ * これには内部的なQtTrayHandleの作成も含まれます。
+ * @return 作成されたQtAppHandleへのポインタ。
  */
 QtAppHandle* create_qt_app();
 
 /**
- * @brief Sets the application ID.
+ * @brief アプリケーションIDを設定します。
+ * @param handle アプリケーションハンドル。
+ * @param id 設定するアプリケーションID文字列。
  */
 void set_app_id(QtAppHandle* handle, const char* id);
 
 /**
- * @brief Sets the application icon from raw binary data.
+ * @brief 生のバイナリデータからアプリケーションアイコンを設定します。
  *
- * @param handle The application handle.
- * @param data Pointer to the raw icon data.
- * @param size The size of the data in bytes.
- * @param format The format of the icon data (e.g., "PNG", "JPG", "SVG").
+ * @param handle アプリケーションハンドル。
+ * @param data 生のアイコンデータへのポインタ。
+ * @param size データのサイズ（バイト単位）。
+ * @param format アイコンデータのフォーマット (例: "PNG", "JPG", "SVG")。
  */
 void set_app_icon_from_data(QtAppHandle* handle, const unsigned char* data, size_t size, const char* format);
 
 /**
- * @brief Initializes the system tray icon with a menu.
- */
-void init_tray(QtAppHandle* handle);
-
-/**
- * @brief Runs the Qt application event loop.
- * This is a blocking call that starts the Qt event loop.
- * It should be called from the thread intended to be the Qt GUI thread.
+ * @brief Qtアプリケーションのイベントループを実行します。
+ * これはブロッキングコールであり、Qtイベントループを開始します。
+ * Qt GUIスレッドとして意図されたスレッドから呼び出す必要があります。
+ * init_tray_iconが呼び出されている場合、システムトレイも初期化されます。
+ * @param handle アプリケーションハンドル。
+ * @param argc コマンドライン引数の数。
+ * @param argv コマンドライン引数の配列。
+ * @return アプリケーションの終了コード。
  */
 int run_qt_app(QtAppHandle* handle, int argc, char* argv[]);
 
 /**
- * @brief Quits the Qt application event loop.
- * This can be called from any thread to signal the Qt event loop to exit.
+ * @brief Qtアプリケーションのイベントループを終了します。
+ * Qtイベントループを終了させるために、どのスレッドからでも呼び出すことができます。
+ * @param handle アプリケーションハンドル。
  */
 void quit_qt_app(QtAppHandle* handle);
 
 /**
- * @brief Polls for the next event from the Qt application.
- */
-AppEvent poll_event(QtAppHandle* handle);
-
-/**
- * @brief Cleans up all resources associated with the handle.
+ * @brief ハンドルに関連付けられたすべてのリソースをクリーンアップします。
+ * @param handle アプリケーションハンドル。
  */
 void cleanup_qt_app(QtAppHandle* handle);
 
 /**
- * @brief Adds a menu item to the system tray icon's context menu.
+ * @brief C++側で割り当てられた文字ポインタを解放します。
+ * Rustに渡されたすべてのC++割り当て文字列に共通して使用されます。
+ * @param ptr 解放するポインタ。
+ */
+void free_char_ptr(const char* ptr);
+
+// --- システムトレイ固有の関数 (内部のQtTrayHandleに委譲) ---
+
+/**
+ * @brief システムトレイアイコンをメニューとともに初期化します。
+ * この関数はrun_qt_appの前に呼び出す必要があります。
+ * @param handle アプリケーションハンドル。
+ */
+void init_tray_icon(QtAppHandle* handle);
+
+/**
+ * @brief システムトレイアイコンのコンテキストメニューにメニューアイテムを追加します。
  *
- * @param handle The application handle.
- * @param text The text to display for the menu item.
- * @param id A unique integer ID for the menu item, used to identify clicks.
+ * @param handle アプリケーションハンドル。
+ * @param text メニューアイテムに表示するテキスト。
+ * @param id クリックを識別するためのユニークな文字列ID。
  */
 void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id);
 
+// RustからポーリングできるイベントタイプのEnum
+// メインのアプリケーションハンドルがトレイからのイベントをポーリングするため、ここに移動。
+enum AppEventType {
+    AppEventType_None,
+    AppEventType_TrayClicked,
+    AppEventType_TrayDoubleClicked,
+    AppEventType_MenuItemClicked
+};
+
+// イベントデータを保持する構造体
+// メインのアプリケーションハンドルがトレイからのイベントをポーリングするため、ここに移動。
+typedef struct {
+    AppEventType type;
+    const char* menu_id_str; // MenuItemClickedイベントの場合、文字列ID
+} AppEvent;
+
 /**
- * @brief Frees a character pointer allocated by the C++ side.
+ * @brief Qtアプリケーション（特にトレイ）から次のイベントをポーリングします。
+ * @param handle アプリケーションハンドル。
+ * @return 次のAppEvent。イベントがない場合はAppEventType_None。
  */
-void free_char_ptr(const char* ptr);
+AppEvent poll_event(QtAppHandle* handle);
+
 
 #ifdef __cplusplus
 }

@@ -1,36 +1,51 @@
 #include "qt-app.hpp"
+#include "qt-tray.cpp"
 #include <QApplication>
 #include <QIcon>
-#include <QMenu>
-#include <QSystemTrayIcon>
 #include <QBuffer>
 #include <string>
 #include <vector>
 #include <memory>
-#include <QDebug> // Add for debugging
+#include <QDebug> // デバッグ用に追加
 
-// --- Internal C++ Implementation ---
+// --- 内部C++実装 ---
 
 class QtAppWrapper {
 public:
-    QtAppWrapper() = default;
+    // コンストラクタ: trayWrapperをnullptrで初期化
+    QtAppWrapper() : trayWrapper(nullptr) {}
 
+    // デストラクタ: Qtオブジェクトは通常Qtのイベントループによって管理されますが、
+    // カスタムラッパーオブジェクトは明示的にクリーンアップします。
+    ~QtAppWrapper() {
+        if (trayWrapper) {
+            delete trayWrapper; // トレイラッパーインスタンスを削除
+            trayWrapper = nullptr;
+        }
+        // QApplicationはapp->exec()が終了したときにQt自身によって削除されます
+    }
+
+    // アプリケーションIDを設定
     void setAppId(const std::string& id) {
         appId = id;
     }
 
+    // アプリケーションアイコンを設定
     void setAppIcon(const unsigned char* data, size_t size, const char* format) {
-        iconData = QByteArray(reinterpret_cast<const char*>(data), size);
+        // QByteArrayのコンストラクタはconst char*とintを期待するため、キャストが必要
+        iconData = QByteArray(reinterpret_cast<const char*>(data), static_cast<int>(size));
         iconFormat = format;
     }
 
-    void initTray() {
+    // init_tray_icon C関数によって呼び出され、トレイ初期化を要求するフラグを設定
+    void requestInitTray() {
         shouldInitTray = true;
     }
 
+    // Qtアプリケーションイベントループを実行
     int run(int argc, char* argv[]) {
         qDebug() << "QtAppWrapper::run started.";
-        app = new QApplication(argc, argv);
+        app = new QApplication(argc, argv); // QApplicationを作成
         qDebug() << "QApplication created.";
 
         if (!appId.empty()) {
@@ -49,85 +64,74 @@ public:
                 qWarning() << "Failed to load application icon from data. Format:" << iconFormat.c_str();
             }
         } else {
-            qDebug() << "No icon data provided.";
+            qDebug() << "No icon data provided for application.";
         }
 
         if (shouldInitTray) {
-            qDebug() << "Tray initialization requested.";
-            if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-                qWarning() << "System tray is not available on this system.";
-                return -1; // System tray is not available
+            qDebug() << "Tray initialization requested. Creating QtTrayWrapper.";
+            // QApplicationポインタをトレイラッパーに渡してインスタンスを作成
+            trayWrapper = new QtTrayWrapper(app);
+            if (!iconData.isEmpty()) {
+                // アプリケーションアイコンデータをトレイアイコンとして設定
+                // ここで const char* を const unsigned char* にキャスト
+                trayWrapper->setTrayIcon(reinterpret_cast<const unsigned char*>(iconData.constData()), iconData.size(), iconFormat.c_str()); // ★修正箇所
             }
-            qDebug() << "System tray is available.";
+            trayWrapper->initTray(); // トレイを初期化
+            qDebug() << "QtTrayWrapper initialized.";
 
-            menu = new QMenu();
-            tray = new QSystemTrayIcon(appIcon);
-            tray->setContextMenu(menu);
-            qDebug() << "Tray icon and menu created and linked.";
-
-            QObject::connect(tray, &QSystemTrayIcon::activated, [this](QSystemTrayIcon::ActivationReason reason) {
-                if (reason == QSystemTrayIcon::Context) {
-                    qDebug() << "Tray icon context menu activated (right-click).";
-                } else if (reason == QSystemTrayIcon::Trigger) {
-                    qDebug() << "Tray icon triggered (left-click).";
-                    event_queue.push_back({AppEventType::TrayClicked, nullptr});
-                } else if (reason == QSystemTrayIcon::DoubleClick) {
-                    qDebug() << "Tray icon double-clicked.";
-                    event_queue.push_back({AppEventType::TrayDoubleClicked, nullptr});
-                }
-            });
-            tray->show();
-            qDebug() << "Tray icon shown.";
-
-            // Add pending menu items after QApplication and QMenu are ready
+            // QApplicationとQMenuが準備できてから、保留中のメニューアイテムを追加
             for (const auto& item : pending_menu_items) {
-                addTrayMenuItem(item.first, item.second);
+                trayWrapper->addTrayMenuItem(item.first, item.second);
             }
-            pending_menu_items.clear(); // Clear the pending list
+            pending_menu_items.clear(); // 保留リストをクリア
         } else {
             qDebug() << "Tray initialization not requested.";
         }
 
         qDebug() << "Starting QApplication event loop...";
-        return app->exec();
+        return app->exec(); // Qtイベントループを開始
     }
 
+    // イベントをポーリング
     AppEvent pollEvent() {
-        if (event_queue.empty()) {
-            return {AppEventType::None, nullptr};
+        if (trayWrapper) {
+            QtTrayEvent trayEvent = trayWrapper->pollTrayEvent();
+            // QtTrayEventをAppEventにマッピング
+            AppEvent appEvent;
+            appEvent.menu_id_str = trayEvent.menu_id_str; // 文字列の所有権を渡す
+            switch (trayEvent.type) {
+                case QtTrayEventType_None:
+                    appEvent.type = AppEventType_None;
+                    break;
+                case QtTrayEventType_TrayClicked:
+                    appEvent.type = AppEventType_TrayClicked;
+                    break;
+                case QtTrayEventType_TrayDoubleClicked:
+                    appEvent.type = AppEventType_TrayDoubleClicked;
+                    break;
+                case QtTrayEventType_MenuItemClicked:
+                    appEvent.type = AppEventType_MenuItemClicked;
+                    break;
+            }
+            return appEvent;
         }
-        AppEvent event = event_queue.front();
-        event_queue.erase(event_queue.begin());
-        return event;
+        return {AppEventType_None, nullptr}; // トレイラッパーがない場合はNoneイベントを返す
     }
 
+    // トレイメニューアイテムを追加
     void addTrayMenuItem(const std::string& text, const std::string& id_str) {
         qDebug() << "Attempting to add tray menu item:" << QString::fromStdString(text) << "with ID:" << QString::fromStdString(id_str);
-        if (!app) { // If QApplication is not yet created, store for later
+        if (trayWrapper && app) { // QApplicationとtrayWrapperが既に作成されている場合
+            trayWrapper->addTrayMenuItem(text, id_str); // 直接QtTrayWrapperに追加
+            qDebug() << "Menu item added directly to QtTrayWrapper.";
+        } else {
+            // QApplicationまたはQtTrayWrapperがまだ作成されていない場合、保留リストに追加
             pending_menu_items.push_back({text, id_str});
-            qDebug() << "QApplication not yet created, pending menu item.";
-            return;
+            qDebug() << "QApplication or QtTrayWrapper not yet created, pending menu item.";
         }
-
-        if (!menu) {
-            // If menu is null, create it now. This handles cases where menu items are added before run().
-            menu = new QMenu();
-            if (tray) {
-                tray->setContextMenu(menu);
-                qDebug() << "Created new menu and set it to tray.";
-            }
-        }
-
-        QAction* action = menu->addAction(QString::fromStdString(text));
-        QObject::connect(action, &QAction::triggered, [this, id_str]() {
-            qDebug() << "Menu item triggered:" << QString::fromStdString(id_str) << ", adding to event queue.";
-            // Duplicate the string so it can be owned by Rust and freed later
-            char* id_cstr = strdup(id_str.c_str());
-            event_queue.push_back({AppEventType::MenuItemClicked, id_cstr});
-        });
-        qDebug() << "Successfully added tray menu item.";
     }
 
+    // アプリケーションを終了
     void quitApp() {
         if (app) {
             app->quit();
@@ -135,27 +139,27 @@ public:
     }
 
 private:
-    // Configuration
+    // 設定
     std::string appId;
     QByteArray iconData;
     std::string iconFormat;
     bool shouldInitTray = false;
-    std::vector<AppEvent> event_queue;
-    std::vector<std::pair<std::string, std::string>> pending_menu_items; // New: To store menu items added before run()
+    std::vector<std::pair<std::string, std::string>> pending_menu_items; // run()より前に追加されたメニューアイテムを格納
 
-    // Qt Objects - Let Qt manage their lifetime.
-    QMenu* menu = nullptr;
-    QSystemTrayIcon* tray = nullptr;
-    QApplication* app = nullptr;
+    // Qtオブジェクト
+    QApplication* app = nullptr; // このクラスが所有するのではなく、メインスレッドが所有
+
+    // 管理されるQtTrayWrapperインスタンス
+    QtTrayWrapper* trayWrapper;
 };
 
-// Opaque handle that points to the C++ implementation
+// 不透明なハンドル (C++実装へのポインタ)
 struct QtAppHandle {
     QtAppWrapper* impl;
 };
 
 
-// --- C-style API Implementation ---
+// --- CスタイルAPI実装 ---
 
 extern "C" {
 
@@ -175,9 +179,9 @@ void set_app_icon_from_data(QtAppHandle* handle, const unsigned char* data, size
     }
 }
 
-void init_tray(QtAppHandle* handle) {
+void init_tray_icon(QtAppHandle* handle) {
     if (handle && handle->impl) {
-        handle->impl->initTray();
+        handle->impl->requestInitTray();
     }
 }
 
@@ -185,14 +189,14 @@ int run_qt_app(QtAppHandle* handle, int argc, char* argv[]) {
     if (handle && handle->impl) {
         return handle->impl->run(argc, argv);
     }
-    return -1;
+    return -1; // エラーコード
 }
 
 AppEvent poll_event(QtAppHandle* handle) {
     if (handle && handle->impl) {
         return handle->impl->pollEvent();
     }
-    return {AppEventType::None, nullptr};
+    return {AppEventType_None, nullptr}; // 無効なハンドル
 }
 
 void quit_qt_app(QtAppHandle* handle) {
@@ -202,11 +206,8 @@ void quit_qt_app(QtAppHandle* handle) {
 }
 
 void cleanup_qt_app(QtAppHandle* handle) {
-    // Let the OS clean up resources on process exit. 
-    // Explicitly deleting Qt objects here conflicts with Qt's own cleanup mechanisms
-    // after the event loop has finished, causing a crash.
     if (handle) {
-        delete handle->impl;
+        delete handle->impl; // これによりtrayWrapperも削除される
         delete handle;
     }
 }
@@ -218,7 +219,7 @@ void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id) {
 }
 
 void free_char_ptr(const char* ptr) {
-    free((void*)ptr);
+    free((void*)ptr); // C++側でstrdupされた文字列を解放
 }
 
 } // extern "C"

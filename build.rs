@@ -19,8 +19,8 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=GLESv2");
     println!("cargo:rustc-link-lib=dylib=X11");
 
-    println!("cargo:rerun-if-changed=lib/qt-tray/src/**/*.hpp");
-    println!("cargo:rerun-if-changed=lib/qt-tray/src/**/*.cpp");
+    println!("cargo:rerun-if-changed=lib/qt6-bind/src/**/*.hpp");
+    println!("cargo:rerun-if-changed=lib/qt6-bind/src/**/*.cpp");
     println!("cargo:rerun-if-changed=lib/qt6-bind/CMakeLists.txt");
     println!("cargo:rerun-if-changed=lib/qt6-bind/src/lib.hpp"); // lib.hppが変更されたら再ビルド
 
