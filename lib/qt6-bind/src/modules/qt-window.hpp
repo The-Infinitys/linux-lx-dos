@@ -1,21 +1,19 @@
 #pragma once
 
-// Forward declarations for Qt classes
-class QMainWindow;
-class QWidget;
+#include <stddef.h>
+#include "qt-element.hpp"
 
-namespace qt_bind {
-    // Forward declaration of the private implementation class
-    class QtWindowPrivate;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    class QtWindow {
-    public:
-        explicit QtWindow(QWidget *parent = nullptr);
-        ~QtWindow();
+typedef struct QtWindowHandle QtWindowHandle;
 
-        void show();
+QtWindowHandle* create_qt_window(const char* title, int width, int height);
+void cleanup_qt_window(QtWindowHandle* handle);
+void show_qt_window(QtWindowHandle* handle);
+void add_widget_to_window(QtWindowHandle* window_handle, QtElementHandle* element_handle);
 
-    private:
-        QtWindowPrivate *d_ptr; // Opaque pointer to the private implementation
-    };
-} // namespace qt_bind
+#ifdef __cplusplus
+}
+#endif

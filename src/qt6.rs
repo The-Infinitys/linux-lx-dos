@@ -252,3 +252,119 @@ impl<'a> Drop for QtApp<'a> {
         }
     }
 }
+
+// --- QtWindow Wrapper ---
+
+pub struct QtWindow<'a> {
+    handle: *mut bind::QtWindowHandle,
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<'a> QtWindow<'a> {
+    pub fn new(title: &str, width: i32, height: i32) -> Result<Self, Qt6Error> {
+        let c_title = CString::new(title)?;
+        let handle = unsafe { bind::create_qt_window(c_title.as_ptr(), width, height) };
+        Ok(Self {
+            handle,
+            _marker: PhantomData,
+        })
+    }
+
+    pub fn show(&self) {
+        unsafe { bind::show_qt_window(self.handle) };
+    }
+
+    pub fn add_widget(&self, element: &QtElement) {
+        unsafe { bind::add_widget_to_window(self.handle, element.handle) };
+    }
+}
+
+impl<'a> Drop for QtWindow<'a> {
+    fn drop(&mut self) {
+        if !self.handle.is_null() {
+            unsafe {
+                bind::cleanup_qt_window(self.handle);
+            }
+            self.handle = std::ptr::null_mut();
+        }
+    }
+}
+
+// --- QtElement Wrapper ---
+
+pub struct QtElement<'a> {
+    handle: *mut bind::QtElementHandle,
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<'a> QtElement<'a> {
+    pub fn new(element_type: bind::QtElementType, id: &str) -> Result<Self, Qt6Error> {
+        let c_id = CString::new(id)?;
+        let handle = unsafe { bind::create_qt_element(element_type, c_id.as_ptr()) };
+        Ok(Self {
+            handle,
+            _marker: PhantomData,
+        })
+    }
+
+    pub fn set_text(&self, text: &str) -> Result<(), Qt6Error> {
+        let c_text = CString::new(text)?;
+        unsafe { bind::set_element_text(self.handle, c_text.as_ptr()) };
+        Ok(())
+    }
+
+    pub fn set_size(&self, width: i32, height: i32) {
+        unsafe { bind::set_element_size(self.handle, width, height) };
+    }
+
+    pub fn set_enabled(&self, enabled: bool) {
+        unsafe { bind::set_element_enabled(self.handle, enabled) };
+    }
+
+    pub fn poll_event(&self) -> Result<QtElementEvent, Qt6Error> {
+        let event = unsafe { bind::poll_element_event(self.handle) };
+        match event.type_ {
+            bind::QtElementEventType_QtElementEventType_None => Ok(QtElementEvent::None),
+            bind::QtElementEventType_QtElementEventType_Clicked => {
+                let id = unsafe { CString::from_raw(event.element_id_str as *mut c_char) }
+                    .to_string_lossy()
+                    .into_owned();
+                Ok(QtElementEvent::Clicked(id))
+            }
+            bind::QtElementEventType_QtElementEventType_TextChanged => {
+                let id = unsafe { CString::from_raw(event.element_id_str as *mut c_char) }
+                    .to_string_lossy()
+                    .into_owned();
+                let text = unsafe { CString::from_raw(event.data_str as *mut c_char) }
+                    .to_string_lossy()
+                    .into_owned();
+                Ok(QtElementEvent::TextChanged(id, text))
+            }
+            bind::QtElementEventType_QtElementEventType_EditingFinished => {
+                let text = unsafe { CString::from_raw(event.data_str as *mut c_char) }
+                    .to_string_lossy()
+                    .into_owned();
+                Ok(QtElementEvent::EditingFinished(text))
+            }
+            _ => Err(Qt6Error::PollEventError("Unknown element event type".to_string())),
+        }
+    }
+}
+
+impl<'a> Drop for QtElement<'a> {
+    fn drop(&mut self) {
+        if !self.handle.is_null() {
+            unsafe {
+                bind::cleanup_qt_element(self.handle);
+            }
+            self.handle = std::ptr::null_mut();
+        }
+    }
+}
+
+pub enum QtElementEvent {
+    None,
+    Clicked(String),
+    TextChanged(String, String),
+    EditingFinished(String),
+}

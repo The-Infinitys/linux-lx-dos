@@ -18,6 +18,7 @@ add_library(qt6-bind STATIC
         src/modules/qt-window.cpp
         src/modules/qt-tray.cpp
         src/modules/qt-app.cpp
+        src/modules/qt-element.cpp
 )
 target_include_directories(qt6-bind PUBLIC src)
 target_link_libraries(qt6-bind PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)

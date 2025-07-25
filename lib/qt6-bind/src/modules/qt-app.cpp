@@ -218,8 +218,5 @@ void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id) {
     }
 }
 
-void free_char_ptr(const char* ptr) {
-    free((void*)ptr); // C++側でstrdupされた文字列を解放
-}
 
 } // extern "C"

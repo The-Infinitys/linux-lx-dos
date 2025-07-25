@@ -61,12 +61,6 @@ void quit_qt_app(QtAppHandle* handle);
  */
 void cleanup_qt_app(QtAppHandle* handle);
 
-/**
- * @brief C++側で割り当てられた文字ポインタを解放します。
- * Rustに渡されたすべてのC++割り当て文字列に共通して使用されます。
- * @param ptr 解放するポインタ。
- */
-void free_char_ptr(const char* ptr);
 
 // --- システムトレイ固有の関数 (内部のQtTrayHandleに委譲) ---
 

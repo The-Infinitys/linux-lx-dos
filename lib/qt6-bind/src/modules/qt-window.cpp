@@ -1,35 +1,73 @@
+#pragma once
 #include "qt-window.hpp"
+#include "qt-element.cpp"
 #include <QMainWindow>
+#include <QWidget>
+#include <QVBoxLayout>
+#include <QDebug>
 
-namespace qt_bind {
-
-    // Private implementation class
-    class QtWindowPrivate : public QMainWindow {
-        Q_OBJECT
-
-    public:
-        explicit QtWindowPrivate(QWidget *parent = nullptr) : QMainWindow(parent) {}
-        ~QtWindowPrivate() {}
-
-        // Add any private members or methods here if needed
-
-        void show() { QMainWindow::show(); }
-    };
-
-    QtWindow::QtWindow(QWidget *parent) : d_ptr(new QtWindowPrivate(parent)) {
-        // You can set up the window here, e.g., set title, size, etc.
-        // d_ptr->setWindowTitle("My Qt Window");
-        // d_ptr->resize(800, 600);
+class QtWindowWrapper {
+public:
+    QtWindowWrapper(const char* title, int width, int height) {
+        window = new QMainWindow();
+        window->setWindowTitle(title);
+        window->resize(width, height);
+        
+        centralWidget = new QWidget();
+        layout = new QVBoxLayout(centralWidget);
+        window->setCentralWidget(centralWidget);
     }
 
-    QtWindow::~QtWindow() {
-        delete d_ptr;
+    ~QtWindowWrapper() {
+        delete window; // QWidget's destructor will delete child widgets and layout
     }
 
-    void QtWindow::show() {
-        d_ptr->show();
+    void show() {
+        window->show();
     }
 
-} // namespace qt_bind
+    void addWidget(QtElementHandle* element_handle) {
+        if (element_handle && element_handle->impl) {
+            QWidget* widget = element_handle->impl->getWidget();
+            if (widget) {
+                layout->addWidget(widget);
+            }
+        }
+    }
 
-#include "qt-window.moc"
+private:
+    QMainWindow* window;
+    QWidget* centralWidget;
+    QVBoxLayout* layout;
+};
+
+struct QtWindowHandle {
+    QtWindowWrapper* impl;
+};
+
+extern "C" {
+
+QtWindowHandle* create_qt_window(const char* title, int width, int height) {
+    return new QtWindowHandle{new QtWindowWrapper(title, width, height)};
+}
+
+void cleanup_qt_window(QtWindowHandle* handle) {
+    if (handle) {
+        delete handle->impl;
+        delete handle;
+    }
+}
+
+void show_qt_window(QtWindowHandle* handle) {
+    if (handle && handle->impl) {
+        handle->impl->show();
+    }
+}
+
+void add_widget_to_window(QtWindowHandle* window_handle, QtElementHandle* element_handle) {
+    if (window_handle && window_handle->impl) {
+        window_handle->impl->addWidget(element_handle);
+    }
+}
+
+}
