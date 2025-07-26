@@ -70,7 +70,7 @@ impl SafeQtAppHandle {
 /// Represents a running Qt application instance.
 pub struct QtAppInstance {
     handle: SafeQtAppHandle,
-    _join_handle: std::thread::JoinHandle<()>, // To keep the thread alive
+    _join_handle: Option<std::thread::JoinHandle<()>>, // To keep the thread alive
 }
 
 impl QtAppInstance {
@@ -105,6 +105,14 @@ impl QtAppInstance {
     pub fn get_handle(&self) -> SafeQtAppHandle {
         self.handle
     }
+
+    pub fn join(mut self) -> Result<(), Box<dyn std::any::Any + Send + 'static>> {
+        if let Some(handle) = self._join_handle.take() {
+            handle.join()
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl Drop for QtAppInstance {
@@ -118,8 +126,10 @@ impl Drop for QtAppInstance {
             // 二重解放を防ぐため、ハンドルを無効な状態にします
             self.handle = unsafe { SafeQtAppHandle::new(std::ptr::null_mut()) };
         }
-        // スレッドがまだ実行中の場合、join()はブロックする可能性があるため、
-        // ここでは明示的にjoinは呼び出しません。quit()がスレッドを終了させることを期待します。
+        // If the thread handle still exists, it means join() was not called.
+        // We should not join here as it would block the drop, but ensure it's cleaned up.
+        // The thread will eventually terminate when the Qt app quits.
+        self._join_handle.take(); // Consume the handle to prevent double-drop
     }
 }
 
@@ -244,7 +254,7 @@ impl<'a> QtApp<'a> {
 
         Ok(QtAppInstance {
             handle, // SafeQtAppHandleはSendなので、そのまま渡せる
-            _join_handle: join_handle,
+            _join_handle: Some(join_handle),
         })
     }
 }

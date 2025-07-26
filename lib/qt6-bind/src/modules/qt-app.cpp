@@ -134,7 +134,7 @@ public:
     // アプリケーションを終了
     void quitApp() {
         if (app) {
-            app->quit();
+            app->exit(0);
         }
     }
 
