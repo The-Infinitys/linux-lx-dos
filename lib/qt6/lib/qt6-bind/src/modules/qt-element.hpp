@@ -14,6 +14,7 @@ enum QtElementType
     QtElementType_Button,
     QtElementType_Label,
     QtElementType_LineEdit,
+    QtElementType_Widget,
     // Add other element types as needed
 };
 

@@ -32,7 +32,8 @@ typedef struct {
 typedef enum QtElementType {
     QtElementType_Button,
     QtElementType_Label,
-    QtElementType_LineEdit
+    QtElementType_LineEdit,
+    QtElementType_Widget
 } QtElementType;
 
 typedef enum QtElementEventType {
@@ -77,4 +78,5 @@ extern "C" {
     void set_element_enabled_async(QtElementHandle* element_handle, bool enabled);
     QtElementEvent poll_element_event(QtElementHandle* handle);
     void cleanup_qt_element(QtElementHandle* handle);
+    void add_child_element_to_element(QtElementHandle* parent_handle, QtElementHandle* child_handle);
 }

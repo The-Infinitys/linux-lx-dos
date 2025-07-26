@@ -42,7 +42,7 @@ extern "C" {
     void set_element_text_async(QtElementHandle* element_handle, const char* text);
     void set_element_size_async(QtElementHandle* element_handle, int width, int height);
     void set_element_enabled_async(QtElementHandle* element_handle, bool enabled);
-    void create_qt_element_async(QtAppHandle* app_handle, int element_type, const char* id_str, void (*callback)(QtElementHandle*));
+    void create_qt_element_async(int element_type, const char* id_str, void (*callback)(QtElementHandle*, void*), void* user_data);
     void close_qt_window_async(QtWindowHandle* handle);
     void refresh_qt_window_async(QtWindowHandle* handle);
     void draw_qt_window_async(QtWindowHandle* handle);

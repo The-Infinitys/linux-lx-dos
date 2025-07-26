@@ -41,23 +41,54 @@ pub struct QtWindow<'a> {
 }
 impl<'a> Default for QtWindow<'a> {
     fn default() -> Self {
-        // This default assumes a default app_handle, which might not be ideal.
-        // Consider if a default QtWindow makes sense without an app_handle.
-        // For now, creating a dummy app_handle for compilation.
-        let dummy_app_handle = unsafe { crate::SafeQtAppHandle::new(std::ptr::null_mut()) };
-        QtWindowBuilder::new(dummy_app_handle).build().unwrap()
+        // Default window with a generic title and size.
+        // This window is not yet associated with a running QApplication.
+        let (tx, rx) = std::sync::mpsc::channel();
+        let title = "Default Window".to_string();
+        let width = 800;
+        let height = 600;
+
+        let c_title = CString::new(title.clone()).unwrap();
+        let user_data = Box::into_raw(Box::new(tx)) as *mut std::os::raw::c_void;
+
+        unsafe {
+            let handle = bind::create_qt_window(c_title.as_ptr(), width, height);
+            tx.send(handle).expect("Failed to send window handle from Qt thread.");
+        }
+
+        let handle = rx.recv().expect("Failed to receive window handle from Qt thread.");
+
+        Self {
+            handle: unsafe { SafeQtWindowHandle::new(handle) },
+            _marker: PhantomData,
+            event_handler: None,
+        }
     }
 }
 
+// Callback function for create_qt_window_async
+extern "C" fn on_window_created(handle: *mut bind::QtWindowHandle, user_data: *mut std::os::raw::c_void) {
+    let tx = unsafe { Box::from_raw(user_data as *mut std::sync::mpsc::Sender<*mut bind::QtWindowHandle>) };
+    tx.send(handle).expect("Failed to send window handle to Rust channel.");
+}
+
 impl<'a> QtWindow<'a> {
-    pub fn new(
-        _app_handle: SafeQtAppHandle,
+    // Private constructor, use QtWindowBuilder instead
+    fn new(
         title: &str,
         width: i32,
         height: i32,
     ) -> Result<Self, Qt6Error> {
+        let (tx, rx) = std::sync::mpsc::channel();
         let c_title = CString::new(title)?;
-        let handle = unsafe { bind::create_qt_window(c_title.as_ptr(), width, height) };
+
+        unsafe {
+            let handle = bind::create_qt_window(c_title.as_ptr(), width, height);
+            tx.send(handle).expect("Failed to send window handle from Qt thread.");
+        }
+
+        let handle = rx.recv().expect("Failed to receive window handle from Qt thread.");
+
         Ok(Self {
             handle: unsafe { SafeQtWindowHandle::new(handle) },
             _marker: PhantomData,
@@ -73,8 +104,8 @@ impl<'a> QtWindow<'a> {
         self
     }
 
-    pub fn default_with_app_handle(app_handle: SafeQtAppHandle) -> Result<Self, Qt6Error> {
-        QtWindowBuilder::new(app_handle).build()
+    pub fn default_with_app_handle(_app_handle: SafeQtAppHandle) -> Result<Self, Qt6Error> {
+        Self::default().build()
     }
 
     pub fn show(&self) {
@@ -108,46 +139,18 @@ impl<'a> QtWindow<'a> {
         rust_event
     }
 
-    pub fn builder(app_handle: SafeQtAppHandle) -> QtWindowBuilder<'a> {
-        QtWindowBuilder::new(app_handle)
+    pub fn builder() -> QtWindowBuilder<'a> {
+        QtWindowBuilder::new()
     }
 
-    pub fn start(mut self) -> Result<QtWindowInstance, Qt6Error> {
-        // Prevent `drop` from being called on `self` which would clean up the handle
-        // before the new thread takes ownership.
-        // `self.handle` を `std::ptr::null_mut()` に設定することで、
-        // `QtWindow` の `drop` がこのハンドルを二重に解放するのを防ぐ。
+    pub fn start(mut self, app_instance: &crate::QtAppInstance) -> Result<QtWindowInstance, Qt6Error> {
+        // Transfer ownership of the handle to QtWindowInstance
         let handle = self.handle;
-        self.handle = unsafe { SafeQtWindowHandle::new(std::ptr::null_mut()) };
+        self.handle = unsafe { SafeQtWindowHandle::new(std::ptr::null_mut()) }; // Prevent double-free on drop
 
-        let join_handle = thread::spawn(move || {
-            let mut argv: Vec<*mut c_char> = Vec::new();
-            let result = unsafe { bind::run_qt_app(handle.as_ptr(), 0, argv.as_mut_ptr()) };
-            if result != 0 {
-                eprintln!("Qt application exited with code: {}", result);
-            }
-        });
-
-        Ok(QtWindowInstance {
-            handle,
-            _join_handle: Some(join_handle),
-            event_queue: Arc::new(Mutex::new(Vec::new())),
-        })
-    }
-
-    pub fn run(mut self) -> Result<(), Qt6Error> {
-        // Prevent `drop` from being called on `self` which would clean up the handle
-        let handle = self.handle;
-        self.handle = unsafe { SafeQtWindowHandle::new(std::ptr::null_mut()) };
-
-        let mut argv: Vec<*mut c_char> = Vec::new();
-        let result = unsafe { bind::run_qt_app(handle.as_ptr(), 0, argv.as_mut_ptr()) };
-        if result != 0 {
-            eprintln!("Qt application exited with code: {}", result);
-            Err(Qt6Error::RunFailed(result))
-        } else {
-            Ok(())
-        }
+        let window_instance = QtWindowInstance::new_internal(handle)?;
+        app_instance.register_window(window_instance);
+        Ok(window_instance)
     }
 }
 
@@ -165,36 +168,28 @@ impl<'a> Drop for QtWindow<'a> {
 // --- QtWindowBuilder ---
 
 pub struct QtWindowBuilder<'a> {
-    app_handle: SafeQtAppHandle,
     title: String,
     width: i32,
     height: i32,
+    elements: Vec<crate::QtElement<'a>>,
     _marker: PhantomData<&'a ()>,
 }
 
 impl<'a> Default for QtWindowBuilder<'a> {
     fn default() -> Self {
-        // This default assumes a default app_handle, which might not be ideal.
-        // Consider if a default QtWindowBuilder makes sense without an app_handle.
-        // For now, creating a dummy app_handle for compilation.
-        let dummy_app_handle = unsafe { crate::SafeQtAppHandle::new(std::ptr::null_mut()) };
-        Self::new(dummy_app_handle)
+        Self {
+            title: "New Window".to_string(),
+            width: 800,
+            height: 600,
+            elements: Vec::new(),
+            _marker: PhantomData,
+        }
     }
 }
 
 impl<'a> QtWindowBuilder<'a> {
-    pub fn new(app_handle: SafeQtAppHandle) -> Self {
-        Self {
-            app_handle,
-            title: "New Window".to_string(),
-            width: 800,
-            height: 600,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn default_with_app_handle(app_handle: SafeQtAppHandle) -> Self {
-        Self::new(app_handle)
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn with_title(mut self, title: &str) -> Self {
@@ -209,12 +204,15 @@ impl<'a> QtWindowBuilder<'a> {
     }
 
     pub fn build(self) -> Result<QtWindow<'a>, Qt6Error> {
-        QtWindow::new(self.app_handle, &self.title, self.width, self.height)
+        let window = QtWindow::new(&self.title, self.width, self.height)?;
+        for element in self.elements {
+            window.add_widget(&element);
+        }
+        Ok(window)
     }
 
-    pub fn append(self, _element: &crate::QtElement) -> Self {
-        // TODO: Implement actual appending of elements to the window builder
-        // This will likely require storing a list of elements and passing them to the C++ side during build.
+    pub fn append(mut self, element: crate::QtElement<'a>) -> Self {
+        self.elements.push(element);
         self
     }
 }
@@ -254,6 +252,10 @@ impl QtWindowInstance {
             intervals: Arc::new(Mutex::new(HashMap::new())),
             interval_id_counter: Arc::new(AtomicU64::new(0)),
         })
+    }
+
+    pub fn get_handle(&self) -> SafeQtWindowHandle {
+        self.handle
     }
 
     pub fn send_event(&self, event: QtWindowEvent) {

@@ -38,9 +38,9 @@ extern "C" {
         return s_qtThreadExecutor;
     }
 
-    void create_qt_window_async(QtAppHandle* app_handle, const char* title, int width, int height, void (*callback)(QtWindowHandle*, void*), void* user_data) {
+    void create_qt_window_async(const char* title, int width, int height, void (*callback)(QtWindowHandle*, void*), void* user_data) {
         get_qt_thread_executor()->enqueue([=]() {
-            QtWindowHandle* window_handle = create_qt_window(app_handle, title, width, height);
+            QtWindowHandle* window_handle = create_qt_window(title, width, height);
             if (callback) {
                 callback(window_handle, user_data);
             }
@@ -77,9 +77,9 @@ extern "C" {
         });
     }
 
-    void create_qt_element_async(QtAppHandle* app_handle, int element_type, const char* id_str, void (*callback)(QtElementHandle*, void*), void* user_data) {
+    void create_qt_element_async(int element_type, const char* id_str, void (*callback)(QtElementHandle*, void*), void* user_data) {
         get_qt_thread_executor()->enqueue([=]() {
-            QtElementHandle* element_handle = create_qt_element(app_handle, static_cast<QtElementType>(element_type), id_str);
+            QtElementHandle* element_handle = create_qt_element(static_cast<QtElementType>(element_type), id_str);
             if (callback) {
                 callback(element_handle, user_data);
             }

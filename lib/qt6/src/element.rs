@@ -13,34 +13,65 @@ pub struct QtElement<'a> {
 
 impl<'a> Default for QtElement<'a> {
     fn default() -> Self {
-        // This default assumes a default app_handle, which might not be ideal.
-        // Consider if a default QtElement makes sense without an app_handle.
-        // For now, creating a dummy app_handle and element for compilation.
-        let dummy_app_handle = unsafe { crate::SafeQtAppHandle::new(std::ptr::null_mut()) };
-        QtElement::new(dummy_app_handle, bind::QtElementType_QtElementType_PushButton, "default_element").unwrap()
+        let (tx, rx) = std::sync::mpsc::channel();
+        let id = "default_element".to_string();
+        let c_id = CString::new(id.clone()).unwrap();
+        let user_data = Box::into_raw(Box::new(tx)) as *mut std::os::raw::c_void;
+
+        unsafe {
+            let handle = bind::create_qt_element(bind::QtElementType_QtElementType_Button, c_id.as_ptr());
+            tx.send(handle).expect("Failed to send element handle to Rust channel.");
+        }
+
+        let handle = rx.recv().expect("Failed to receive element handle from Qt thread.");
+
+        Self {
+            handle,
+            _marker: PhantomData,
+            event_handler: None,
+        }
     }
 }
 
 impl<'a> From<bind::QtElementType> for QtElement<'a> {
     fn from(element_type: bind::QtElementType) -> Self {
-        // This assumes a default app_handle, which might not be ideal.
-        // For now, creating a dummy app_handle for compilation.
-        let dummy_app_handle = unsafe { crate::SafeQtAppHandle::new(std::ptr::null_mut()) };
-        QtElement::new(dummy_app_handle, element_type, "").unwrap()
+        let (tx, rx) = std::sync::mpsc::channel();
+        let id = "".to_string(); // Default empty ID
+        let c_id = CString::new(id.clone()).unwrap();
+
+        unsafe {
+            let handle = bind::create_qt_element(element_type, c_id.as_ptr());
+            tx.send(handle).expect("Failed to send element handle from Qt thread.");
+        }
+
+        let handle = rx.recv().expect("Failed to receive element handle from Qt thread.");
+
+        Self {
+            handle,
+            _marker: PhantomData,
+            event_handler: None,
+        }
     }
 }
 
-pub enum QtElementProperty {
-    Text(String),
-    Size(i32, i32),
-    Enabled(bool),
-    // Add other properties as needed
+// Callback function for create_qt_element_async
+extern "C" fn on_element_created(handle: *mut bind::QtElementHandle, user_data: *mut std::os::raw::c_void) {
+    let tx = unsafe { Box::from_raw(user_data as *mut std::sync::mpsc::Sender<*mut bind::QtElementHandle>) };
+    tx.send(handle).expect("Failed to send element handle to Rust channel.");
 }
 
 impl<'a> QtElement<'a> {
-    pub fn new(_app_handle: SafeQtAppHandle, element_type: bind::QtElementType, id: &str) -> Result<Self, Qt6Error> {
+    pub fn new(element_type: bind::QtElementType, id: &str) -> Result<Self, Qt6Error> {
+        let (tx, rx) = std::sync::mpsc::channel();
         let c_id = CString::new(id)?;
-        let handle = unsafe { bind::create_qt_element((element_type as i32).try_into().unwrap(), c_id.as_ptr()) };
+
+        unsafe {
+            let handle = bind::create_qt_element(element_type, c_id.as_ptr());
+            tx.send(handle).expect("Failed to send element handle from Qt thread.");
+        }
+
+        let handle = rx.recv().expect("Failed to receive element handle from Qt thread.");
+
         Ok(Self {
             handle,
             _marker: PhantomData,
@@ -85,9 +116,10 @@ impl<'a> QtElement<'a> {
         unsafe { bind::set_element_enabled(self.handle, enabled) };
     }
 
-    pub fn append(self, _element: &QtElement) -> Self {
-        // TODO: Implement actual appending of elements. This will likely require C++ backend changes.
-        eprintln!("Warning: Appending elements is not yet fully supported in the C++ backend.");
+    pub fn append(self, element: &QtElement) -> Self {
+        unsafe {
+            bind::add_child_element_to_element(self.handle, element.handle);
+        }
         self
     }
 
@@ -141,9 +173,16 @@ impl<'a> Drop for QtElement<'a> {
     }
 }
 
+#[derive(Clone)]
 pub enum QtElementEvent {
     None,
     Clicked(String),
     TextChanged(String, String),
     EditingFinished(String),
+}
+
+pub enum QtElementProperty {
+    Text(String),
+    Size(i32, i32),
+    Enabled(bool),
 }

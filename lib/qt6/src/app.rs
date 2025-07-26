@@ -1,6 +1,9 @@
 use std::ffi::{c_char, CString};
 use std::marker::PhantomData;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use crate::{Qt6Error, SafeQtAppHandle, QtAppEvent, bind};
+use crate::window::{QtWindowInstance, SafeQtWindowHandle};
 
 /// Represents a running Qt application instance.
 pub struct QtAppInstance {
@@ -15,15 +18,6 @@ impl QtAppInstance {
         let event = unsafe { bind::poll_event(self.handle.as_ptr()) };
         match event.type_ {
             bind::AppEventType_AppEventType_None => Ok(QtAppEvent::None),
-            bind::AppEventType_AppEventType_TrayClicked => Ok(QtAppEvent::TrayClicked),
-            bind::AppEventType_AppEventType_TrayDoubleClicked => Ok(QtAppEvent::TrayDoubleClicked),
-            bind::AppEventType_AppEventType_MenuItemClicked => {
-                // C++側でstrdupされた文字列の所有権をRustが受け取り、CString::from_rawで管理する
-                // CStringのDrop実装が自動的にfree_char_ptrを呼び出すため、明示的な呼び出しは不要
-                let c_str = unsafe { CString::from_raw(event.menu_id_str as *mut c_char) };
-                let rust_str = c_str.to_string_lossy().into_owned();
-                Ok(QtAppEvent::MenuItemClicked(rust_str))
-            }
             _ => Err(Qt6Error::PollEventError("Unknown event type".to_string())),
         }
     }
@@ -190,6 +184,7 @@ impl<'a> QtApp<'a> {
         Ok(QtAppInstance {
             handle, // SafeQtAppHandleはSendなので、そのまま渡せる
             _join_handle: Some(join_handle),
+            windows: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 }

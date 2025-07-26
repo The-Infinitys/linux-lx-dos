@@ -5,9 +5,11 @@ use std::marker::PhantomData;
 pub mod app;
 pub mod window;
 pub mod element;
+pub mod tray;
 mod bind;
 pub use app::{QtApp, QtAppInstance};
 pub use window::{QtWindow, QtWindowBuilder, QtWindowEvent};
+pub use tray::QtTray;
 pub use element::{QtElement, QtElementEvent};
 
 

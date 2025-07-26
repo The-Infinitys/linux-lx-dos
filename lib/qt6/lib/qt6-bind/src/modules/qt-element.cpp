@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QLineEdit>
+#include <QVBoxLayout> // Added for QVBoxLayout
 #include <QDebug>
 #include <string>
 #include <vector>
@@ -141,7 +142,9 @@ public:
 private:
     std::string element_id;
     QWidget *widget;
-    std::queue<QtElementEvent> event_queue; // Queue stores the public C-style event structs
+    std::queue<QtElementEvent> event_queue;
+    public:
+    QVBoxLayout* m_layout; // Added for QtElementType_Widget
 };
 
 // Define QtElementHandle for C++ compilation (concrete definition)
@@ -222,6 +225,16 @@ extern "C"
             handle->impl = nullptr; // Prevent double deletion
             // Then delete the handle itself
             delete handle;
+        }
+    }
+
+    void add_child_element_to_element(QtElementHandle* parent_handle, QtElementHandle* child_handle) {
+        if (parent_handle && parent_handle->impl && child_handle && child_handle->impl) {
+            if (parent_handle->impl->m_layout) {
+                parent_handle->impl->m_layout->addWidget(child_handle->impl->getWidget());
+            } else {
+                qWarning() << "Parent element does not have a layout to add children to.";
+            }
         }
     }
 
