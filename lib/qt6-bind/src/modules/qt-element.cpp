@@ -17,7 +17,7 @@
 #include <QString> // For QString conversions
 
 // Full definition of QtElementWrapper class
-class QtElementWrapper : public QObject
+class QtElementWrapper : public QWidget
 {
     Q_OBJECT // Qt's meta-object system requires this macro
 

@@ -275,38 +275,147 @@ impl<'a> Drop for QtApp<'a> {
 
 // --- QtWindow Wrapper ---
 
+/// A safe wrapper around `*mut bind::QtWindowHandle` that asserts `Send` safety.
+/// This is necessary to satisfy Rust's Orphan Rules and explicitly state
+/// the thread-safety guarantees.
+#[repr(transparent)] // Ensures SafeQtWindowHandle has the same memory layout as *mut bind::QtWindowHandle
+#[derive(Clone, Copy)]
+pub struct SafeQtWindowHandle(*mut bind::QtWindowHandle);
+
+// Implement Send for SafeQtWindowHandle, asserting that it's safe to transfer
+// this handle between threads. This is based on the assumption that
+// Qt's QApplication handle, when passed to run_qt_app, is managed exclusively
+// by the thread running the event loop.
+unsafe impl Send for SafeQtWindowHandle {}
+
+impl SafeQtWindowHandle {
+    /// # Safety
+    /// Creates a new `SafeQtWindowHandle` from a raw pointer.
+    /// This function is unsafe because the caller must ensure the pointer is valid.
+    pub unsafe fn new(ptr: *mut bind::QtWindowHandle) -> Self {
+        Self(ptr)
+    }
+
+    /// Returns the raw pointer.
+    pub fn as_ptr(&self) -> *mut bind::QtWindowHandle {
+        self.0
+    }
+}
+
 pub struct QtWindow<'a> {
-    handle: *mut bind::QtWindowHandle,
+    handle: SafeQtWindowHandle,
     _marker: PhantomData<&'a ()>,
 }
 
 impl<'a> QtWindow<'a> {
-    pub fn new(title: &str, width: i32, height: i32) -> Result<Self, Qt6Error> {
+    fn new(title: &str, width: i32, height: i32) -> Result<Self, Qt6Error> {
         let c_title = CString::new(title)?;
         let handle = unsafe { bind::create_qt_window(c_title.as_ptr(), width, height) };
         Ok(Self {
-            handle,
+            handle: unsafe { SafeQtWindowHandle::new(handle) },
             _marker: PhantomData,
         })
     }
 
     pub fn show(&self) {
-        unsafe { bind::show_qt_window(self.handle) };
+        unsafe { bind::show_qt_window(self.handle.as_ptr()) };
     }
 
     pub fn add_widget(&self, element: &QtElement) {
-        unsafe { bind::add_widget_to_window(self.handle, element.handle) };
+        unsafe { bind::add_widget_to_window(self.handle.as_ptr(), element.handle as *mut std::os::raw::c_void) };
+    }
+
+    pub fn poll_event(&self) -> Result<QtWindowEvent, Qt6Error> {
+        let event = unsafe { bind::poll_window_event(self.handle.as_ptr()) };
+        match event.type_ {
+            bind::QtWindowEventType_QtWindowEvent_None => Ok(QtWindowEvent::None),
+            bind::QtWindowEventType_QtWindowEvent_Closed => Ok(QtWindowEvent::Closed),
+            _ => Err(Qt6Error::PollEventError("Unknown window event type".to_string())),
+        }
+    }
+
+    pub fn main_func<F>(&self, f: F) -> Result<(), Qt6Error>
+    where
+        F: Fn() + Send + 'static,
+    {
+        let window_handle = self.handle;
+        std::thread::spawn(move || {
+            loop {
+                // Check if the window is still valid before executing the function
+                // This is a simplified check; a more robust solution might involve
+                // a shared atomic flag or a channel for graceful shutdown.
+                if unsafe { bind::is_qt_window_valid(window_handle.as_ptr()) } == 0 {
+                    break; // Window is no longer valid, exit thread
+                }
+                f();
+                std::thread::sleep(std::time::Duration::from_millis(10)); // Prevent busy-waiting
+            }
+        });
+        Ok(())
+    }
+
+    pub fn set_interval<F>(&self, interval_ms: u64, f: F) -> Result<(), Qt6Error>
+    where
+        F: Fn() + Send + 'static,
+    {
+        let window_handle = self.handle;
+        std::thread::spawn(move || {
+            let duration = std::time::Duration::from_millis(interval_ms);
+            loop {
+                if unsafe { bind::is_qt_window_valid(window_handle.as_ptr()) } == 0 {
+                    break; // Window is no longer valid, exit thread
+                }
+                f();
+                std::thread::sleep(duration);
+            }
+        });
+        Ok(())
     }
 }
 
 impl<'a> Drop for QtWindow<'a> {
     fn drop(&mut self) {
-        if !self.handle.is_null() {
+        if !self.handle.as_ptr().is_null() {
             unsafe {
-                bind::cleanup_qt_window(self.handle);
+                bind::cleanup_qt_window(self.handle.as_ptr());
             }
-            self.handle = std::ptr::null_mut();
+            self.handle = unsafe { SafeQtWindowHandle::new(std::ptr::null_mut()) };
         }
+    }
+}
+
+// --- QtWindowBuilder ---
+
+pub struct QtWindowBuilder<'a> {
+    title: String,
+    width: i32,
+    height: i32,
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<'a> QtWindowBuilder<'a> {
+    pub fn new() -> Self {
+        Self {
+            title: "New Window".to_string(),
+            width: 800,
+            height: 600,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.title = title.to_string();
+        self
+    }
+
+    pub fn with_size(mut self, width: i32, height: i32) -> Self {
+        self.width = width;
+        self.height = height;
+        self
+    }
+
+    pub fn build(self) -> Result<QtWindow<'a>, Qt6Error> {
+        QtWindow::new(&self.title, self.width, self.height)
     }
 }
 
@@ -389,4 +498,13 @@ pub enum QtElementEvent {
     Clicked(String),
     TextChanged(String, String),
     EditingFinished(String),
+}
+
+/// Events that can be received from a Qt window.
+#[derive(Clone, Debug)]
+pub enum QtWindowEvent {
+    /// No event occurred.
+    None,
+    /// The window was closed.
+    Closed,
 }

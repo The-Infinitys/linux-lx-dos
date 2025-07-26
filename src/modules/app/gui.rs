@@ -41,7 +41,54 @@ impl Gui<'_> {
                     QtAppEvent::MenuItemClicked(id) => {
                         println!("Menu item clicked with ID: {}", id);
                         match id.as_str() {
-                            "open_window" => {}
+                            "open_window" => {
+                                println!("Opening new window...");
+                                let window = qt6::QtWindowBuilder::new()
+                                    .with_title("My New Window")
+                                    .with_size(400, 300)
+                                    .build()?;
+                                window.show();
+
+                                // Example: Add a label to the window
+                                let label = qt6::QtElement::new(
+                                    qt6::bind::QtElementType_QtElementType_Label,
+                                    "my_label",
+                                )?;
+                                label.set_text("Hello from Rust Qt!")?;
+                                window.add_widget(&label);
+
+                                // Example: Run a main function for the window
+                                window.main_func(|| {
+                                    // This closure runs continuously on a separate thread for this window
+                                    // println!("Window main func tick");
+                                })?;
+
+                                // Example: Set an interval for the window
+                                window.set_interval(1000, || {
+                                    // This closure runs every 1000ms on a separate thread for this window
+                                    // println!("Window interval tick");
+                                })?;
+
+                                // Handle window events in a separate thread to avoid blocking the main app event loop
+                                std::thread::spawn(move || {
+                                    loop {
+                                        match window.poll_event() {
+                                            Ok(event) => match event {
+                                                qt6::QtWindowEvent::None => {},
+                                                qt6::QtWindowEvent::Closed => {
+                                                    println!("Window closed!");
+                                                    break; // Exit window event loop
+                                                },
+                                            },
+                                            Err(e) => {
+                                                eprintln!("Error polling window event: {}", e);
+                                                break;
+                                            }
+                                        }
+                                        std::thread::sleep(std::time::Duration::from_millis(50));
+                                    }
+                                });
+                            }
                             "exit" => {
                                 println!("Sending quit signal to Qt app...");
                                 qt_app_instance.quit();
