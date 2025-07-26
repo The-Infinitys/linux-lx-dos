@@ -1,0 +1,14 @@
+[package]
+name = "qt6"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+[dependencies]
+thiserror = "1.0"
+
+[build-dependencies]
+bindgen = "0.69.4"
+cmake = "0.1.50"
+
+[lib]
+name = "qt6"

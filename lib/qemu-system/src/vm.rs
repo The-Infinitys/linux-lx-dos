@@ -1,5 +1,4 @@
-// src/modules/lx_dos/vm.rs
-
+/// src/vm.rs
 pub mod configure;
 pub mod device;
 

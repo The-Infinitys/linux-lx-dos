@@ -1,4 +1,4 @@
-/// src/qt6.rs
+/// src/lib.rs
 use std::ffi::{c_char, CString};
 use std::marker::PhantomData;
 
@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
-pub mod bind {
+mod bind {
     // bindgenがqt-app.hppを処理して生成したバインディングをインクルード
     // OUT_DIRはbuild.rsによって設定されます。
     include!(concat!(env!("OUT_DIR"), "/qt6-bind.rs"));

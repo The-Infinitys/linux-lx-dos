@@ -2,7 +2,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::modules::lx_dos::vm::QemuArgs;
+use crate::vm::QemuArgs;
 use sysinfo::System; // ホストのメモリ情報を取得するために追加 // QemuArgsトレイトを使うためにインポート
 
 pub struct QemuMemory {

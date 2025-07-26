@@ -1,20 +1,13 @@
 [package]
 name = "linux-lx-dos"
 version = "0.1.0"
-edition = "2021"
-build = "build.rs"
+edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.41", features = ["derive"] }
 crossbeam-channel = "0.5.15"
 env_logger = "0.11.8"
-gtk = { version = "0.10.0", package = "gtk4", features = ["v4_18"] }
 log = "0.4.27"
-sysinfo = "0.36.0"
 thiserror = "2.0.12"
-tray-icon = { version = "0.21.0" }
-
-[build-dependencies]
-bindgen = "0.72.0"
-cmake = "0.1.54"
-pkg-config = "0.3.29"
+qt6 = {path = "lib/qt6"}
+qemu-system = {path = "lib/qemu-system"}
