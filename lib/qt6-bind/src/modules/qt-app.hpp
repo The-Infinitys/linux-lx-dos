@@ -1,6 +1,9 @@
 #pragma once
 
 #include <stddef.h> // For size_t
+#include "qt-window.hpp"
+#include "qt-element.hpp"
+#include "qt-tray.hpp" // QtTrayEventの定義のために追加
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,6 +14,21 @@ typedef struct QtAppHandle QtAppHandle;
 
 // Qtトレイハンドルの前方宣言 (QtAppHandleが内部で管理するため)
 typedef struct QtTrayHandle QtTrayHandle;
+
+// RustからポーリングできるイベントタイプのEnum
+// FFI互換性のためCスタイルEnumを使用
+typedef enum AppEventType {
+    AppEventType_None,
+    AppEventType_TrayClicked,
+    AppEventType_TrayDoubleClicked,
+    AppEventType_MenuItemClicked
+} AppEventType;
+
+// イベントデータを保持する構造体
+typedef struct {
+    AppEventType type;
+    const char* menu_id_str; // MenuItemClickedイベントの場合、文字列ID
+} AppEvent;
 
 /**
  * @brief 新しいQtアプリケーションハンドルを作成します。
@@ -49,24 +67,14 @@ void set_app_icon_from_data(QtAppHandle* handle, const unsigned char* data, size
 int run_qt_app(QtAppHandle* handle, int argc, char* argv[]);
 
 /**
- * @brief Qtアプリケーションのイベントループを終了します。
- * Qtイベントループを終了させるために、どのスレッドからでも呼び出すことができます。
+ * @brief Qtアプリケーションから次のイベントをポーリングします。
  * @param handle アプリケーションハンドル。
+ * @return 次のAppEvent。イベントがない場合はAppEventType_None。
  */
-void quit_qt_app(QtAppHandle* handle);
+AppEvent poll_event(QtAppHandle* handle);
 
 /**
- * @brief ハンドルに関連付けられたすべてのリソースをクリーンアップします。
- * @param handle アプリケーションハンドル。
- */
-void cleanup_qt_app(QtAppHandle* handle);
-
-
-// --- システムトレイ固有の関数 (内部のQtTrayHandleに委譲) ---
-
-/**
- * @brief システムトレイアイコンをメニューとともに初期化します。
- * この関数はrun_qt_appの前に呼び出す必要があります。
+ * @brief システムトレイアイコンを初期化します。
  * @param handle アプリケーションハンドル。
  */
 void init_tray_icon(QtAppHandle* handle);
@@ -80,30 +88,20 @@ void init_tray_icon(QtAppHandle* handle);
  */
 void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id);
 
-// RustからポーリングできるイベントタイプのEnum
-// メインのアプリケーションハンドルがトレイからのイベントをポーリングするため、ここに移動。
-enum AppEventType {
-    AppEventType_None,
-    AppEventType_TrayClicked,
-    AppEventType_TrayDoubleClicked,
-    AppEventType_MenuItemClicked
-};
-
-// イベントデータを保持する構造体
-// メインのアプリケーションハンドルがトレイからのイベントをポーリングするため、ここに移動。
-typedef struct {
-    AppEventType type;
-    const char* menu_id_str; // MenuItemClickedイベントの場合、文字列ID
-} AppEvent;
+/**
+ * @brief Qtアプリケーションのイベントループを終了します。
+ * Qtイベントループを終了させるために、どのスレッドからでも呼び出すことができます。
+ * @param handle アプリケーションハンドル。
+ */
+void quit_qt_app(QtAppHandle* handle);
 
 /**
- * @brief Qtアプリケーション（特にトレイ）から次のイベントをポーリングします。
+ * @brief ハンドルに関連付けられたすべてのリソースをクリーンアップします。
  * @param handle アプリケーションハンドル。
- * @return 次のAppEvent。イベントがない場合はAppEventType_None。
  */
-AppEvent poll_event(QtAppHandle* handle);
+void cleanup_qt_app(QtAppHandle* handle);
+
+// Functions to create and manipulate Qt objects on the Qt thread
 
 
-#ifdef __cplusplus
-}
-#endif
+} // extern "C"

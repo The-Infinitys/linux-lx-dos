@@ -1,5 +1,7 @@
 #include "qt-app.hpp"
 #include "qt-tray.cpp"
+#include "qt-window.hpp"
+#include "qt-element.hpp"
 #include <QApplication>
 #include <QIcon>
 #include <QBuffer>
@@ -7,10 +9,14 @@
 #include <vector>
 #include <memory>
 #include <QDebug> // デバッグ用に追加
+#include <QMetaObject>
+#include <QGenericArgument>
+#include <QGenericReturnArgument>
 
 // --- 内部C++実装 ---
 
-class QtAppWrapper {
+class QtAppWrapper : public QObject {
+    Q_OBJECT
 public:
     // コンストラクタ: trayWrapperをnullptrで初期化
     QtAppWrapper() : trayWrapper(nullptr) {}
@@ -98,7 +104,10 @@ public:
             QtTrayEvent trayEvent = trayWrapper->pollTrayEvent();
             // QtTrayEventをAppEventにマッピング
             AppEvent appEvent;
-            appEvent.menu_id_str = trayEvent.menu_id_str; // 文字列の所有権を渡す
+            // menu_id_strはQtTrayEventから直接コピーされるため、
+            // QtTrayEventのmenu_id_strがstrdupで確保されていることを前提とする。
+            // AppEventのmenu_id_strは所有権を移動する。
+            appEvent.menu_id_str = trayEvent.menu_id_str; 
             switch (trayEvent.type) {
                 case QtTrayEventType_None:
                     appEvent.type = AppEventType_None;
@@ -136,6 +145,35 @@ public:
         if (app) {
             app->exit(0);
         }
+    }
+
+    // Q_INVOKABLE methods for cross-thread operations
+    Q_INVOKABLE QtWindowHandle* createQtWindow(const char* title, int width, int height) {
+        return create_qt_window(title, width, height);
+    }
+
+    Q_INVOKABLE void showQtWindow(QtWindowHandle* handle) {
+        show_qt_window(handle);
+    }
+
+    Q_INVOKABLE void addWidgetToQtWindow(QtWindowHandle* window_handle, QWidget* widget) {
+        add_widget_to_window(window_handle, widget);
+    }
+
+    Q_INVOKABLE void setQtElementText(QtElementHandle* element_handle, const char* text) {
+        set_element_text(element_handle, text);
+    }
+
+    Q_INVOKABLE void setQtElementSize(QtElementHandle* element_handle, int width, int height) {
+        set_element_size(element_handle, width, height);
+    }
+
+    Q_INVOKABLE void setQtElementEnabled(QtElementHandle* element_handle, bool enabled) {
+        set_element_enabled(element_handle, enabled);
+    }
+
+    Q_INVOKABLE QtElementHandle* createQtElement(int element_type, const char* id_str) {
+        return create_qt_element(static_cast<QtElementType>(element_type), id_str);
     }
 
 private:
@@ -218,5 +256,6 @@ void add_tray_menu_item(QtAppHandle* handle, const char* text, const char* id) {
     }
 }
 
-
 } // extern "C"
+
+#include "qt-app.moc"

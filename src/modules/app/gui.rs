@@ -43,7 +43,7 @@ impl Gui<'_> {
                         match id.as_str() {
                             "open_window" => {
                                 println!("Opening new window...");
-                                let window = qt6::QtWindowBuilder::new()
+                                let window = qt6::QtWindowBuilder::new(qt_app_instance.get_handle())
                                     .with_title("My New Window")
                                     .with_size(400, 300)
                                     .build()?;
@@ -51,23 +51,12 @@ impl Gui<'_> {
 
                                 // Example: Add a label to the window
                                 let label = qt6::QtElement::new(
+                                    qt_app_instance.get_handle(),
                                     qt6::bind::QtElementType_QtElementType_Label,
                                     "my_label",
                                 )?;
                                 label.set_text("Hello from Rust Qt!")?;
                                 window.add_widget(&label);
-
-                                // Example: Run a main function for the window
-                                window.main_func(|| {
-                                    // This closure runs continuously on a separate thread for this window
-                                    // println!("Window main func tick");
-                                })?;
-
-                                // Example: Set an interval for the window
-                                window.set_interval(1000, || {
-                                    // This closure runs every 1000ms on a separate thread for this window
-                                    // println!("Window interval tick");
-                                })?;
 
                                 // Handle window events in a separate thread to avoid blocking the main app event loop
                                 std::thread::spawn(move || {

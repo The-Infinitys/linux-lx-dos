@@ -308,7 +308,7 @@ pub struct QtWindow<'a> {
 }
 
 impl<'a> QtWindow<'a> {
-    fn new(title: &str, width: i32, height: i32) -> Result<Self, Qt6Error> {
+    fn new(_app_handle: SafeQtAppHandle, title: &str, width: i32, height: i32) -> Result<Self, Qt6Error> {
         let c_title = CString::new(title)?;
         let handle = unsafe { bind::create_qt_window(c_title.as_ptr(), width, height) };
         Ok(Self {
@@ -333,44 +333,6 @@ impl<'a> QtWindow<'a> {
             _ => Err(Qt6Error::PollEventError("Unknown window event type".to_string())),
         }
     }
-
-    pub fn main_func<F>(&self, f: F) -> Result<(), Qt6Error>
-    where
-        F: Fn() + Send + 'static,
-    {
-        let window_handle = self.handle;
-        std::thread::spawn(move || {
-            loop {
-                // Check if the window is still valid before executing the function
-                // This is a simplified check; a more robust solution might involve
-                // a shared atomic flag or a channel for graceful shutdown.
-                if unsafe { bind::is_qt_window_valid(window_handle.as_ptr()) } == 0 {
-                    break; // Window is no longer valid, exit thread
-                }
-                f();
-                std::thread::sleep(std::time::Duration::from_millis(10)); // Prevent busy-waiting
-            }
-        });
-        Ok(())
-    }
-
-    pub fn set_interval<F>(&self, interval_ms: u64, f: F) -> Result<(), Qt6Error>
-    where
-        F: Fn() + Send + 'static,
-    {
-        let window_handle = self.handle;
-        std::thread::spawn(move || {
-            let duration = std::time::Duration::from_millis(interval_ms);
-            loop {
-                if unsafe { bind::is_qt_window_valid(window_handle.as_ptr()) } == 0 {
-                    break; // Window is no longer valid, exit thread
-                }
-                f();
-                std::thread::sleep(duration);
-            }
-        });
-        Ok(())
-    }
 }
 
 impl<'a> Drop for QtWindow<'a> {
@@ -387,6 +349,7 @@ impl<'a> Drop for QtWindow<'a> {
 // --- QtWindowBuilder ---
 
 pub struct QtWindowBuilder<'a> {
+    app_handle: SafeQtAppHandle,
     title: String,
     width: i32,
     height: i32,
@@ -394,8 +357,9 @@ pub struct QtWindowBuilder<'a> {
 }
 
 impl<'a> QtWindowBuilder<'a> {
-    pub fn new() -> Self {
+    pub fn new(app_handle: SafeQtAppHandle) -> Self {
         Self {
+            app_handle,
             title: "New Window".to_string(),
             width: 800,
             height: 600,
@@ -415,7 +379,7 @@ impl<'a> QtWindowBuilder<'a> {
     }
 
     pub fn build(self) -> Result<QtWindow<'a>, Qt6Error> {
-        QtWindow::new(&self.title, self.width, self.height)
+        QtWindow::new(self.app_handle, &self.title, self.width, self.height)
     }
 }
 
@@ -427,9 +391,9 @@ pub struct QtElement<'a> {
 }
 
 impl<'a> QtElement<'a> {
-    pub fn new(element_type: bind::QtElementType, id: &str) -> Result<Self, Qt6Error> {
+    pub fn new(_app_handle: SafeQtAppHandle, element_type: bind::QtElementType, id: &str) -> Result<Self, Qt6Error> {
         let c_id = CString::new(id)?;
-        let handle = unsafe { bind::create_qt_element(element_type, c_id.as_ptr()) };
+        let handle = unsafe { bind::create_qt_element((element_type as i32).try_into().unwrap(), c_id.as_ptr()) };
         Ok(Self {
             handle,
             _marker: PhantomData,
