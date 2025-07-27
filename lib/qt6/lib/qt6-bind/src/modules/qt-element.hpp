@@ -113,4 +113,12 @@ extern "C"
      */
     void cleanup_qt_element(QtElementHandle *handle);
 
+    /**
+     * @brief Adds a child element to a parent element.
+     *
+     * @param parent_handle The handle of the parent element.
+     * @param child_handle The handle of the child element to add.
+     */
+    void add_child_element_to_element(QtElementHandle* parent_handle, QtElementHandle* child_handle);
+
 } // extern "C"

@@ -49,7 +49,6 @@ impl<'a> Default for QtWindow<'a> {
         let height = 600;
 
         let c_title = CString::new(title.clone()).unwrap();
-        let user_data = Box::into_raw(Box::new(tx)) as *mut std::os::raw::c_void;
 
         unsafe {
             let handle = bind::create_qt_window(c_title.as_ptr(), width, height);

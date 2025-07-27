@@ -1,9 +1,6 @@
+use crate::{bind, Qt6Error, QtAppEvent, SafeQtAppHandle};
 use std::ffi::{c_char, CString};
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
-use crate::{Qt6Error, SafeQtAppHandle, QtAppEvent, bind};
-use crate::window::{QtWindowInstance, SafeQtWindowHandle};
 
 /// Represents a running Qt application instance.
 pub struct QtAppInstance {
@@ -184,7 +181,6 @@ impl<'a> QtApp<'a> {
         Ok(QtAppInstance {
             handle, // SafeQtAppHandleはSendなので、そのまま渡せる
             _join_handle: Some(join_handle),
-            windows: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 }

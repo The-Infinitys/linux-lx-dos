@@ -1,7 +1,4 @@
 /// src/lib.rs
-use std::ffi::{c_char, CString};
-use std::marker::PhantomData;
-
 pub mod app;
 pub mod window;
 pub mod element;

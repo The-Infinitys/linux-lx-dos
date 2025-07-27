@@ -1,7 +1,7 @@
+use crate::bind;
+use crate::Qt6Error;
 use std::ffi::{c_char, CString};
 use std::marker::PhantomData;
-use crate::{Qt6Error, SafeQtAppHandle};
-use crate::bind;
 
 // --- QtElement Wrapper ---
 
@@ -16,14 +16,17 @@ impl<'a> Default for QtElement<'a> {
         let (tx, rx) = std::sync::mpsc::channel();
         let id = "default_element".to_string();
         let c_id = CString::new(id.clone()).unwrap();
-        let user_data = Box::into_raw(Box::new(tx)) as *mut std::os::raw::c_void;
 
         unsafe {
-            let handle = bind::create_qt_element(bind::QtElementType_QtElementType_Button, c_id.as_ptr());
-            tx.send(handle).expect("Failed to send element handle to Rust channel.");
+            let handle =
+                bind::create_qt_element(bind::QtElementType_QtElementType_Button, c_id.as_ptr());
+            tx.send(handle)
+                .expect("Failed to send element handle to Rust channel.");
         }
 
-        let handle = rx.recv().expect("Failed to receive element handle from Qt thread.");
+        let handle = rx
+            .recv()
+            .expect("Failed to receive element handle from Qt thread.");
 
         Self {
             handle,
@@ -41,10 +44,13 @@ impl<'a> From<bind::QtElementType> for QtElement<'a> {
 
         unsafe {
             let handle = bind::create_qt_element(element_type, c_id.as_ptr());
-            tx.send(handle).expect("Failed to send element handle from Qt thread.");
+            tx.send(handle)
+                .expect("Failed to send element handle from Qt thread.");
         }
 
-        let handle = rx.recv().expect("Failed to receive element handle from Qt thread.");
+        let handle = rx
+            .recv()
+            .expect("Failed to receive element handle from Qt thread.");
 
         Self {
             handle,
@@ -55,9 +61,15 @@ impl<'a> From<bind::QtElementType> for QtElement<'a> {
 }
 
 // Callback function for create_qt_element_async
-extern "C" fn on_element_created(handle: *mut bind::QtElementHandle, user_data: *mut std::os::raw::c_void) {
-    let tx = unsafe { Box::from_raw(user_data as *mut std::sync::mpsc::Sender<*mut bind::QtElementHandle>) };
-    tx.send(handle).expect("Failed to send element handle to Rust channel.");
+extern "C" fn on_element_created(
+    handle: *mut bind::QtElementHandle,
+    user_data: *mut std::os::raw::c_void,
+) {
+    let tx = unsafe {
+        Box::from_raw(user_data as *mut std::sync::mpsc::Sender<*mut bind::QtElementHandle>)
+    };
+    tx.send(handle)
+        .expect("Failed to send element handle to Rust channel.");
 }
 
 impl<'a> QtElement<'a> {
@@ -67,10 +79,13 @@ impl<'a> QtElement<'a> {
 
         unsafe {
             let handle = bind::create_qt_element(element_type, c_id.as_ptr());
-            tx.send(handle).expect("Failed to send element handle from Qt thread.");
+            tx.send(handle)
+                .expect("Failed to send element handle from Qt thread.");
         }
 
-        let handle = rx.recv().expect("Failed to receive element handle from Qt thread.");
+        let handle = rx
+            .recv()
+            .expect("Failed to receive element handle from Qt thread.");
 
         Ok(Self {
             handle,
