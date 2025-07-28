@@ -5,7 +5,9 @@ pub mod event;
 pub mod instance;
 pub mod tray;
 pub mod window;
+pub mod notification;
 use crate::app::event::Event;
+use crate::app::notification::Notification;
 use crate::app::tray::Tray;
 use crate::app::window::builder::WindowBuilder;
 
@@ -31,7 +33,7 @@ impl fmt::Debug for App {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("App")
             .field("id", &self.id)
-            .field("icon_data", &self.icon_data)
+            .field("icon_data", &self.icon_data.is_some())
             .field("tray", &self.tray)
             .field("event_handler", &"<function>")
             .finish()
@@ -81,6 +83,11 @@ impl App {
     /// 新しいトレイを作成する
     pub fn new_tray() -> Tray {
         Tray::new()
+    }
+
+    /// 新しい通知を作成する
+    pub fn new_notification() -> Notification {
+        Notification::new()
     }
 
     /// アプリケーションを開始する。スレッドを停止しない。
