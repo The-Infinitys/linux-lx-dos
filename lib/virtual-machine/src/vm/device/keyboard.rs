@@ -1,9 +1,9 @@
 // src/modules/lx_dos/vm/device/keyboard.rs
 
-use super::super::QemuArgs;
+use super::super::VmArgs;
 
 #[derive(Debug)]
-pub struct QemuKeyboard {
+pub struct VmKeyboard {
     model: KeyboardModel,
 }
 
@@ -14,14 +14,14 @@ pub enum KeyboardModel {
     Usb,
 }
 
-impl QemuKeyboard {
+impl VmKeyboard {
     pub fn new(model: KeyboardModel) -> Self {
         Self { model }
     }
 }
 
-impl QemuArgs for QemuKeyboard {
-    fn to_qemu_args(&self) -> Vec<String> {
+impl VmArgs for VmKeyboard {
+    fn to_vm_args(&self) -> Vec<String> {
         match self.model {
             KeyboardModel::PS2 => vec!["-device".to_string(), "ps2-kbd".to_string()],
             KeyboardModel::VirtIO => vec!["-device".to_string(), "virtio-keyboard".to_string()],
@@ -36,19 +36,19 @@ mod tests {
 
     #[test]
     fn test_keyboard_ps2() {
-        let keyboard = QemuKeyboard::new(KeyboardModel::PS2);
-        assert_eq!(keyboard.to_qemu_args(), vec!["-device", "ps2-kbd"]);
+        let keyboard = VmKeyboard::new(KeyboardModel::PS2);
+        assert_eq!(keyboard.to_vm_args(), vec!["-device", "ps2-kbd"]);
     }
 
     #[test]
     fn test_keyboard_virtio() {
-        let keyboard = QemuKeyboard::new(KeyboardModel::VirtIO);
-        assert_eq!(keyboard.to_qemu_args(), vec!["-device", "virtio-keyboard"]);
+        let keyboard = VmKeyboard::new(KeyboardModel::VirtIO);
+        assert_eq!(keyboard.to_vm_args(), vec!["-device", "virtio-keyboard"]);
     }
 
     #[test]
     fn test_keyboard_usb() {
-        let keyboard = QemuKeyboard::new(KeyboardModel::Usb);
-        assert_eq!(keyboard.to_qemu_args(), vec!["-device", "usb-kbd"]);
+        let keyboard = VmKeyboard::new(KeyboardModel::Usb);
+        assert_eq!(keyboard.to_vm_args(), vec!["-device", "usb-kbd"]);
     }
 }

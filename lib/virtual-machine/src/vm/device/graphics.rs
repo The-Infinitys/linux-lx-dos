@@ -1,9 +1,9 @@
 // src/modules/lx_dos/vm/device/graphics.rs
 
-use super::super::QemuArgs;
+use super::super::VmArgs;
 
 #[derive(Debug)]
-pub struct QemuGraphics {
+pub struct VmGraphics {
     driver: GraphicsDriver,
 }
 
@@ -14,14 +14,14 @@ pub enum GraphicsDriver {
     VirtIO,
 }
 
-impl QemuGraphics {
+impl VmGraphics {
     pub fn new(driver: GraphicsDriver) -> Self {
         Self { driver }
     }
 }
 
-impl QemuArgs for QemuGraphics {
-    fn to_qemu_args(&self) -> Vec<String> {
+impl VmArgs for VmGraphics {
+    fn to_vm_args(&self) -> Vec<String> {
         match self.driver {
             GraphicsDriver::Qxl => vec!["-vga".to_string(), "qxl".to_string()],
             GraphicsDriver::Vga => vec!["-vga".to_string(), "std".to_string()],
@@ -36,19 +36,19 @@ mod tests {
 
     #[test]
     fn test_graphics_qxl() {
-        let graphics = QemuGraphics::new(GraphicsDriver::Qxl);
-        assert_eq!(graphics.to_qemu_args(), vec!["-vga", "qxl"]);
+        let graphics = VmGraphics::new(GraphicsDriver::Qxl);
+        assert_eq!(graphics.to_vm_args(), vec!["-vga", "qxl"]);
     }
 
     #[test]
     fn test_graphics_vga() {
-        let graphics = QemuGraphics::new(GraphicsDriver::Vga);
-        assert_eq!(graphics.to_qemu_args(), vec!["-vga", "std"]);
+        let graphics = VmGraphics::new(GraphicsDriver::Vga);
+        assert_eq!(graphics.to_vm_args(), vec!["-vga", "std"]);
     }
 
     #[test]
     fn test_graphics_virtio() {
-        let graphics = QemuGraphics::new(GraphicsDriver::VirtIO);
-        assert_eq!(graphics.to_qemu_args(), vec!["-vga", "virtio"]);
+        let graphics = VmGraphics::new(GraphicsDriver::VirtIO);
+        assert_eq!(graphics.to_vm_args(), vec!["-vga", "virtio"]);
     }
 }

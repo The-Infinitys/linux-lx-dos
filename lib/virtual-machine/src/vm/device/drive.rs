@@ -1,10 +1,10 @@
 // src/modules/lx_dos/vm/device/drive.rs
 use std::path::PathBuf;
 
-use super::super::QemuArgs;
+use super::super::VmArgs;
 
 #[derive(Debug)]
-pub struct QemuDrive {
+pub struct VmDrive {
     file: PathBuf,
     format: DriveFormat,
     media: DriveMedia,
@@ -22,7 +22,7 @@ pub enum DriveMedia {
     CdRom,
 }
 
-impl QemuDrive {
+impl VmDrive {
     pub fn new(file: PathBuf, format: DriveFormat, media: DriveMedia) -> Self {
         Self {
             file,
@@ -32,8 +32,8 @@ impl QemuDrive {
     }
 }
 
-impl QemuArgs for QemuDrive {
-    fn to_qemu_args(&self) -> Vec<String> {
+impl VmArgs for VmDrive {
+    fn to_vm_args(&self) -> Vec<String> {
         let format_str = match self.format {
             DriveFormat::Raw => "raw",
             DriveFormat::QCow2 => "qcow2",
@@ -60,26 +60,26 @@ mod tests {
 
     #[test]
     fn test_drive_disk() {
-        let drive = QemuDrive::new(
+        let drive = VmDrive::new(
             PathBuf::from("/path/to/disk.img"),
             DriveFormat::QCow2,
             DriveMedia::Disk,
         );
         assert_eq!(
-            drive.to_qemu_args(),
+            drive.to_vm_args(),
             vec!["-drive", "file=/path/to/disk.img,format=qcow2,media=disk"]
         );
     }
 
     #[test]
     fn test_drive_cdrom() {
-        let drive = QemuDrive::new(
+        let drive = VmDrive::new(
             PathBuf::from("/path/to/cdrom.iso"),
             DriveFormat::Raw,
             DriveMedia::CdRom,
         );
         assert_eq!(
-            drive.to_qemu_args(),
+            drive.to_vm_args(),
             vec!["-drive", "file=/path/to/cdrom.iso,format=raw,media=cdrom"]
         );
     }

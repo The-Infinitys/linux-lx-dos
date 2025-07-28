@@ -1,9 +1,9 @@
 // src/modules/lx_dos/vm/device/video.rs
 
-use super::super::QemuArgs;
+use super::super::VmArgs;
 
 #[derive(Debug)]
-pub struct QemuVideo {
+pub struct VmVideo {
     display: VideoDisplay,
 }
 
@@ -14,14 +14,14 @@ pub enum VideoDisplay {
     Vnc { port: u16 },
 }
 
-impl QemuVideo {
+impl VmVideo {
     pub fn new(display: VideoDisplay) -> Self {
         Self { display }
     }
 }
 
-impl QemuArgs for QemuVideo {
-    fn to_qemu_args(&self) -> Vec<String> {
+impl VmArgs for VmVideo {
+    fn to_vm_args(&self) -> Vec<String> {
         match &self.display {
             VideoDisplay::Sdl => vec!["-display".to_string(), "sdl".to_string()],
             VideoDisplay::Gtk => vec!["-display".to_string(), "gtk".to_string()],
@@ -36,19 +36,19 @@ mod tests {
 
     #[test]
     fn test_video_sdl() {
-        let video = QemuVideo::new(VideoDisplay::Sdl);
-        assert_eq!(video.to_qemu_args(), vec!["-display", "sdl"]);
+        let video = VmVideo::new(VideoDisplay::Sdl);
+        assert_eq!(video.to_vm_args(), vec!["-display", "sdl"]);
     }
 
     #[test]
     fn test_video_gtk() {
-        let video = QemuVideo::new(VideoDisplay::Gtk);
-        assert_eq!(video.to_qemu_args(), vec!["-display", "gtk"]);
+        let video = VmVideo::new(VideoDisplay::Gtk);
+        assert_eq!(video.to_vm_args(), vec!["-display", "gtk"]);
     }
 
     #[test]
     fn test_video_vnc() {
-        let video = QemuVideo::new(VideoDisplay::Vnc { port: 5901 });
-        assert_eq!(video.to_qemu_args(), vec!["-vnc", ":1"]);
+        let video = VmVideo::new(VideoDisplay::Vnc { port: 5901 });
+        assert_eq!(video.to_vm_args(), vec!["-vnc", ":1"]);
     }
 }

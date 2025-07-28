@@ -1,20 +1,20 @@
-use super::QemuArgs;
+use super::VmArgs;
 use std::fmt;
 use std::str::FromStr;
 
 /// QEMU CPUの設定を表す構造体
-pub struct QemuCpu {
-    pub cores: QemuCpuCores, // CPUコアの設定
+pub struct VmCpu {
+    pub cores: VmCpuCores, // CPUコアの設定
     pub model: String,       // CPUモデル名 (例: "host")
 }
 
 /// QEMU CPUコアの数を相対値または絶対値で表す構造体
-pub struct QemuCpuCores {
+pub struct VmCpuCores {
     relative: Option<f64>,   // 相対値 (例: 0.5 for 50%)
     absolute: Option<usize>, // 絶対値 (例: 4 cores)
 }
 
-impl QemuCpuCores {
+impl VmCpuCores {
     /// QEMUの-smpオプションで使用するコアの絶対数を文字列で返します。
     /// 相対値の場合は、ホストのCPUコア数に基づいて計算します。
     pub fn get(&self) -> usize {
@@ -40,16 +40,16 @@ impl QemuCpuCores {
     }
 }
 
-impl Default for QemuCpu {
-    /// QemuCpuのデフォルト値を定義します。
+impl Default for VmCpu {
+    /// VmCpuのデフォルト値を定義します。
     /// デフォルトは50%のCPUコアを使用します。
     fn default() -> Self {
-        QemuCpu::from_str("50%").unwrap()
+        VmCpu::from_str("50%").unwrap()
     }
 }
 
-impl QemuArgs for QemuCpu {
-    fn to_qemu_args(&self) -> Vec<String> {
+impl VmArgs for VmCpu {
+    fn to_vm_args(&self) -> Vec<String> {
         vec![
             "-cpu".to_string(),
             self.model.to_string(),
@@ -59,10 +59,10 @@ impl QemuArgs for QemuCpu {
     }
 }
 
-impl FromStr for QemuCpu {
+impl FromStr for VmCpu {
     type Err = String;
 
-    /// 文字列からQemuCpuインスタンスをパースします。
+    /// 文字列からVmCpuインスタンスをパースします。
     /// "50%" のような相対値、または "4" のような絶対値をサポートします。
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
@@ -74,7 +74,7 @@ impl FromStr for QemuCpu {
                 if (0.0..=100.0).contains(&relative) {
                     let relative = relative / 100.0;
                     Ok(Self {
-                        cores: QemuCpuCores {
+                        cores: VmCpuCores {
                             relative: Some(relative),
                             absolute: None,
                         },
@@ -93,7 +93,7 @@ impl FromStr for QemuCpu {
             // 絶対値 (例: "4" コア) として処理する。
             let absolute = value;
             return Ok(Self {
-                cores: QemuCpuCores {
+                cores: VmCpuCores {
                     relative: None,
                     absolute: Some(absolute),
                 },
@@ -108,17 +108,17 @@ impl FromStr for QemuCpu {
     }
 }
 
-impl fmt::Display for QemuCpu {
-    /// QemuCpuの表示形式を定義します。
+impl fmt::Display for VmCpu {
+    /// VmCpuの表示形式を定義します。
     /// 例: "cores=50%" または "cores=4"
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut parts = Vec::new();
         // coresが指定されていない、または0の場合は表示しない
-        // QemuCpuCoresがusizeと比較できるようにPartialOrd<usize>を実装する必要がある
+        // VmCpuCoresがusizeと比較できるようにPartialOrd<usize>を実装する必要がある
         if self.cores > 0 {
             parts.push(format!("cores={}", self.cores));
         }
-        // socketsが1の場合は省略 (このフィールドは現在QemuCpuに存在しないが、コメントとして残す)
+        // socketsが1の場合は省略 (このフィールドは現在VmCpuに存在しないが、コメントとして残す)
         // partsが空の場合 (例: cores=0 の場合など)
         if parts.is_empty() {
             write!(f, "cores=0") // coresが0でも最低限表示
@@ -128,16 +128,16 @@ impl fmt::Display for QemuCpu {
     }
 }
 
-impl fmt::Debug for QemuCpu {
-    /// QemuCpuのデバッグ表示形式を定義します。Displayと同じ形式を使用します。
+impl fmt::Debug for VmCpu {
+    /// VmCpuのデバッグ表示形式を定義します。Displayと同じ形式を使用します。
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-// QemuCpuCoresの表示形式を定義します。
+// VmCpuCoresの表示形式を定義します。
 // 相対値の場合はパーセンテージ、絶対値の場合はそのままの数を表示します。
-impl fmt::Display for QemuCpuCores {
+impl fmt::Display for VmCpuCores {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(relative) = self.relative {
             // 相対値の場合はパーセンテージとして表示 (例: 50%)
@@ -153,9 +153,9 @@ impl fmt::Display for QemuCpuCores {
     }
 }
 
-// QemuCpuCoresとusizeの等価性を定義します。
+// VmCpuCoresとusizeの等価性を定義します。
 // 主に `self.cores > 0` のような比較のために使用されます。
-impl PartialEq<usize> for QemuCpuCores {
+impl PartialEq<usize> for VmCpuCores {
     fn eq(&self, other: &usize) -> bool {
         if *other == 0 {
             // 0 との比較の場合
@@ -168,15 +168,15 @@ impl PartialEq<usize> for QemuCpuCores {
                 false // この状態はFromStrの実装により発生しないはず
             }
         } else {
-            // 0 以外のusizeとの比較は、現状のQemuCpuCoresの設計では曖昧なため、等しくないと判断
+            // 0 以外のusizeとの比較は、現状のVmCpuCoresの設計では曖昧なため、等しくないと判断
             false
         }
     }
 }
 
-// QemuCpuCoresとusizeの順序比較を定義します。
+// VmCpuCoresとusizeの順序比較を定義します。
 // 主に `self.cores > 0` のような比較のために使用されます。
-impl PartialOrd<usize> for QemuCpuCores {
+impl PartialOrd<usize> for VmCpuCores {
     fn partial_cmp(&self, other: &usize) -> Option<std::cmp::Ordering> {
         if *other == 0 {
             // 0 との比較の場合
@@ -196,15 +196,15 @@ impl PartialOrd<usize> for QemuCpuCores {
                 None // この状態はFromStrの実装により発生しないはず
             }
         } else {
-            // 0 以外のusizeとの比較は、現状のQemuCpuCoresの設計では曖昧なため、比較不能と判断
+            // 0 以外のusizeとの比較は、現状のVmCpuCoresの設計では曖昧なため、比較不能と判断
             None
         }
     }
 }
 
-// QemuCpuCoresの等価性を定義します (QemuCpuCores同士の比較)。
-// これにより、QemuCpuCores == QemuCpuCores の比較が可能になります。
-impl PartialEq for QemuCpuCores {
+// VmCpuCoresの等価性を定義します (VmCpuCores同士の比較)。
+// これにより、VmCpuCores == VmCpuCores の比較が可能になります。
+impl PartialEq for VmCpuCores {
     fn eq(&self, other: &Self) -> bool {
         match (self.absolute, self.relative, other.absolute, other.relative) {
             (Some(self_abs), None, Some(other_abs), None) => self_abs == other_abs, // 両方絶対値
@@ -216,9 +216,9 @@ impl PartialEq for QemuCpuCores {
     }
 }
 
-// QemuCpuCoresの順序比較を定義します (QemuCpuCores同士の比較)。
-// これにより、QemuCpuCores < QemuCpuCores の比較などが可能になります。
-impl PartialOrd for QemuCpuCores {
+// VmCpuCoresの順序比較を定義します (VmCpuCores同士の比較)。
+// これにより、VmCpuCores < VmCpuCores の比較などが可能になります。
+impl PartialOrd for VmCpuCores {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self.absolute, self.relative, other.absolute, other.relative) {
             (Some(self_abs), None, Some(other_abs), None) => Some(self_abs.cmp(&other_abs)), // 両方絶対値
@@ -256,8 +256,8 @@ impl fmt::Display for Architecture {
         )
     }
 }
-impl QemuArgs for Architecture {
-    fn to_qemu_args(&self) -> Vec<String> {
-        vec![format!("qemu-system-{}", self)]
+impl VmArgs for Architecture {
+    fn to_vm_args(&self) -> Vec<String> {
+        vec![format!("vm-system-{}", self)]
     }
 }

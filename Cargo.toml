@@ -9,5 +9,5 @@ crossbeam-channel = "0.5.15"
 env_logger = "0.11.8"
 log = "0.4.27"
 thiserror = "2.0.12"
-qt6 = {path = "lib/qt6"}
-qemu-system = {path = "lib/qemu-system"}
+virtual-machine.path = "lib/virtual-machine"
+gui.path = "lib/gui"

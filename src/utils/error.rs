@@ -7,7 +7,5 @@ pub enum LxDosError {
     #[error("{0}")]
     Message(String),
     #[error("{0}")]
-    Qt6(#[from] qt6::Qt6Error),
-    #[error("{0}")]
     Crossbeam(#[from] crossbeam_channel::RecvError),
 }

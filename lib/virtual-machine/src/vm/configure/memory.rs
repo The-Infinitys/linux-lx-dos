@@ -2,18 +2,18 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::vm::QemuArgs;
-use sysinfo::System; // ホストのメモリ情報を取得するために追加 // QemuArgsトレイトを使うためにインポート
+use crate::vm::VmArgs;
+use sysinfo::System; // ホストのメモリ情報を取得するために追加 // VmArgsトレイトを使うためにインポート
 
-pub struct QemuMemory {
+pub struct VmMemory {
     absolute: Option<usize>,
     relative: Option<f64>,
 }
 
 // Debug トレイトの実装: デバッグ時に構造体の内容を人間が読める形式で表示
-impl fmt::Debug for QemuMemory {
+impl fmt::Debug for VmMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("QemuMemory")
+        f.debug_struct("VmMemory")
             .field("absolute", &self.absolute)
             .field("relative", &self.relative)
             .finish()
@@ -21,13 +21,13 @@ impl fmt::Debug for QemuMemory {
 }
 
 // Display トレイトの実装: ユーザー向けの表示形式を定義
-impl fmt::Display for QemuMemory {
+impl fmt::Display for VmMemory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(absolute) = self.absolute {
             // 絶対値の場合、読みやすい単位で表示する
-            let giga = QemuMemory::get_giga();
-            let mega = QemuMemory::get_mega();
-            let kilo = QemuMemory::get_kilo();
+            let giga = VmMemory::get_giga();
+            let mega = VmMemory::get_mega();
+            let kilo = VmMemory::get_kilo();
 
             if absolute >= giga && absolute % giga == 0 {
                 write!(f, "{}G", absolute / giga)
@@ -43,12 +43,12 @@ impl fmt::Display for QemuMemory {
             write!(f, "{}%", relative * 100.0)
         } else {
             // どちらもNoneの場合はエラーまたはデフォルト表示
-            write!(f, "Invalid QemuMemory state")
+            write!(f, "Invalid VmMemory state")
         }
     }
 }
 
-impl FromStr for QemuMemory {
+impl FromStr for VmMemory {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
@@ -77,11 +77,11 @@ impl FromStr for QemuMemory {
             let s_lower = s.to_lowercase(); // 単位の判定のために小文字に変換
 
             let (value_str, multiplier) = if let Some(stripped) = s_lower.strip_suffix("g") {
-                (stripped, QemuMemory::get_giga())
+                (stripped, VmMemory::get_giga())
             } else if let Some(stripped) = s_lower.strip_suffix("m") {
-                (stripped, QemuMemory::get_mega())
+                (stripped, VmMemory::get_mega())
             } else if let Some(stripped) = s_lower.strip_suffix("k") {
-                (stripped, QemuMemory::get_kilo())
+                (stripped, VmMemory::get_kilo())
             } else if let Some(stripped) = s_lower.strip_suffix("b") {
                 (stripped, 1) // バイト単位
             } else {
@@ -117,7 +117,7 @@ impl FromStr for QemuMemory {
     }
 }
 
-impl QemuMemory {
+impl VmMemory {
     /// 1キロバイト (KB) をバイト単位で返します。
     fn get_kilo() -> usize {
         1024
@@ -125,12 +125,12 @@ impl QemuMemory {
 
     /// 1メガバイト (MB) をバイト単位で返します。
     fn get_mega() -> usize {
-        1024 * QemuMemory::get_kilo()
+        1024 * VmMemory::get_kilo()
     }
 
     /// 1ギガバイト (GB) をバイト単位で返します。
     fn get_giga() -> usize {
-        1024 * QemuMemory::get_mega()
+        1024 * VmMemory::get_mega()
     }
 
     /// ホストマシンの総メモリを取得します（バイト単位）。
@@ -156,28 +156,28 @@ impl QemuMemory {
             Ok((max_memory_bytes as f64 * rel).round() as usize)
         } else {
             Err(
-                "QemuMemory is in an invalid state (both absolute and relative are None)."
+                "VmMemory is in an invalid state (both absolute and relative are None)."
                     .to_string(),
             )
         }
     }
 }
 
-impl Default for QemuMemory {
+impl Default for VmMemory {
     fn default() -> Self {
         // デフォルトは50%とする
         Self::from_str("50%").unwrap()
     }
 }
 
-impl QemuArgs for QemuMemory {
-    fn to_qemu_args(&self) -> Vec<String> {
+impl VmArgs for VmMemory {
+    fn to_vm_args(&self) -> Vec<String> {
         // メモリ値をQEMUの-mオプションに適した形式（メガバイト単位）で生成
         let memory_bytes = self
             .get_absolute_value()
             .expect("Failed to calculate memory value");
         // QEMUはメガバイト単位を期待するので、バイトをメガバイトに変換
-        let memory_mb = memory_bytes / QemuMemory::get_mega();
+        let memory_mb = memory_bytes / VmMemory::get_mega();
         vec!["-m".to_string(), memory_mb.to_string()]
     }
 }
@@ -188,24 +188,24 @@ mod tests {
 
     #[test]
     fn test_from_str_percentage() {
-        assert_eq!(QemuMemory::from_str("50%").unwrap().relative, Some(0.5));
-        assert_eq!(QemuMemory::from_str("100%").unwrap().relative, Some(1.0));
-        assert_eq!(QemuMemory::from_str("0%").unwrap().relative, Some(0.0));
-        assert!(QemuMemory::from_str("101%").is_err());
-        assert!(QemuMemory::from_str("-10%").is_err());
-        assert!(QemuMemory::from_str("abc%").is_err());
+        assert_eq!(VmMemory::from_str("50%").unwrap().relative, Some(0.5));
+        assert_eq!(VmMemory::from_str("100%").unwrap().relative, Some(1.0));
+        assert_eq!(VmMemory::from_str("0%").unwrap().relative, Some(0.0));
+        assert!(VmMemory::from_str("101%").is_err());
+        assert!(VmMemory::from_str("-10%").is_err());
+        assert!(VmMemory::from_str("abc%").is_err());
     }
     #[test]
     fn test_default() {
-        let default_mem = QemuMemory::default();
+        let default_mem = VmMemory::default();
         assert_eq!(default_mem.relative, Some(0.5));
         assert_eq!(default_mem.absolute, None);
     }
 
     #[test]
     fn test_get_absolute_value_relative() {
-        let mem = QemuMemory::from_str("25%").unwrap();
-        let host_memory = QemuMemory::get_host_total_memory().unwrap_or(4096 * 1024); // テスト用にデフォルト値を設定
+        let mem = VmMemory::from_str("25%").unwrap();
+        let host_memory = VmMemory::get_host_total_memory().unwrap_or(4096 * 1024); // テスト用にデフォルト値を設定
         assert_eq!(
             mem.get_absolute_value().unwrap(),
             (host_memory as f64 * 0.25).round() as usize
@@ -214,52 +214,52 @@ mod tests {
 
     #[test]
     fn test_get_absolute_value_absolute() {
-        let mem = QemuMemory::from_str("1G").unwrap();
+        let mem = VmMemory::from_str("1G").unwrap();
         assert_eq!(mem.get_absolute_value().unwrap(), 1024 * 1024 * 1024); // max_memory_bytesは関係ない
     }
 
     #[test]
     fn test_get_absolute_value_zero_max_memory() {
-        let mem = QemuMemory::from_str("50%").unwrap();
+        let mem = VmMemory::from_str("50%").unwrap();
         // ホストメモリ取得が失敗する場合のテストは環境依存のためスキップ可能
-        if let Ok(_host_memory) = QemuMemory::get_host_total_memory() {
+        if let Ok(_host_memory) = VmMemory::get_host_total_memory() {
             assert!(mem.get_absolute_value().is_ok());
         }
     }
 
     #[test]
     fn test_debug_output() {
-        let mem_abs = QemuMemory::from_str("1G").unwrap();
+        let mem_abs = VmMemory::from_str("1G").unwrap();
         assert_eq!(
             format!("{:?}", mem_abs),
-            "QemuMemory { absolute: Some(1073741824), relative: None }"
+            "VmMemory { absolute: Some(1073741824), relative: None }"
         );
 
-        let mem_rel = QemuMemory::from_str("50%").unwrap();
+        let mem_rel = VmMemory::from_str("50%").unwrap();
         assert_eq!(
             format!("{:?}", mem_rel),
-            "QemuMemory { absolute: None, relative: Some(0.5) }"
+            "VmMemory { absolute: None, relative: Some(0.5) }"
         );
     }
 
     #[test]
     fn test_display_output() {
-        let mem_abs_g = QemuMemory::from_str("2G").unwrap();
+        let mem_abs_g = VmMemory::from_str("2G").unwrap();
         assert_eq!(format!("{}", mem_abs_g), "2G");
 
-        let mem_abs_m = QemuMemory::from_str("512M").unwrap();
+        let mem_abs_m = VmMemory::from_str("512M").unwrap();
         assert_eq!(format!("{}", mem_abs_m), "512M");
 
-        let mem_abs_k = QemuMemory::from_str("256K").unwrap();
+        let mem_abs_k = VmMemory::from_str("256K").unwrap();
         assert_eq!(format!("{}", mem_abs_k), "256K");
 
-        let mem_abs_b = QemuMemory::from_str("1024B").unwrap();
+        let mem_abs_b = VmMemory::from_str("1024B").unwrap();
         assert_eq!(format!("{}", mem_abs_b), "1K");
 
-        let mem_abs_no_unit = QemuMemory::from_str("100").unwrap();
+        let mem_abs_no_unit = VmMemory::from_str("100").unwrap();
         assert_eq!(format!("{}", mem_abs_no_unit), "100B");
 
-        let mem_rel = QemuMemory::from_str("75%").unwrap();
+        let mem_rel = VmMemory::from_str("75%").unwrap();
         assert_eq!(format!("{}", mem_rel), "75%");
     }
 }

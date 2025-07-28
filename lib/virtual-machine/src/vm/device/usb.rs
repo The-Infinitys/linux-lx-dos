@@ -1,14 +1,14 @@
 // src/modules/lx_dos/vm/device/usb.rs
 
-use super::super::QemuArgs;
+use super::super::VmArgs;
 
 #[derive(Debug)]
-pub struct QemuUsb {
+pub struct VmUsb {
     enable: bool,
     host_device: Option<String>,
 }
 
-impl QemuUsb {
+impl VmUsb {
     pub fn new(enable: bool, host_device: Option<String>) -> Self {
         Self {
             enable,
@@ -17,8 +17,8 @@ impl QemuUsb {
     }
 }
 
-impl QemuArgs for QemuUsb {
-    fn to_qemu_args(&self) -> Vec<String> {
+impl VmArgs for VmUsb {
+    fn to_vm_args(&self) -> Vec<String> {
         let mut args = if self.enable {
             vec!["-usb".to_string()]
         } else {
@@ -40,15 +40,15 @@ mod tests {
 
     #[test]
     fn test_usb_enabled() {
-        let usb = QemuUsb::new(true, None);
-        assert_eq!(usb.to_qemu_args(), vec!["-usb"]);
+        let usb = VmUsb::new(true, None);
+        assert_eq!(usb.to_vm_args(), vec!["-usb"]);
     }
 
     #[test]
     fn test_usb_with_host_device() {
-        let usb = QemuUsb::new(true, Some("/dev/bus/usb/001/002".to_string()));
+        let usb = VmUsb::new(true, Some("/dev/bus/usb/001/002".to_string()));
         assert_eq!(
-            usb.to_qemu_args(),
+            usb.to_vm_args(),
             vec![
                 "-usb",
                 "-device",
