@@ -5,6 +5,7 @@ pub enum Event {
     Window(WindowEvent),
     Mouse(MouseEvent),
     Keyboard(KeyboardEvent),
+    Tray(TrayEvent),
 }
 
 pub enum AppEvent {
@@ -12,7 +13,10 @@ pub enum AppEvent {
     Suspend,
     Resume,
 }
-
+pub enum TrayEvent{
+    Clicked,
+    MenuSelected(String), // メニューのid
+}
 pub enum WindowEvent {
     Open,
     Close,
