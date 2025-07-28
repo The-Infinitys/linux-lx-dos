@@ -1,2 +1,2 @@
 #[allow(unused)]
-mod cxx;
+mod qt6;

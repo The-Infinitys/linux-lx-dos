@@ -1,3 +1,3 @@
 pub mod app;
-mod bind;
+mod gui_lib;
 pub mod error;
