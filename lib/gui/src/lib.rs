@@ -1,3 +1,3 @@
 pub mod app;
-pub mod bind;
+mod bind;
 pub mod error;
