@@ -6,6 +6,7 @@ pub enum Event {
     Mouse(MouseEvent),
     Keyboard(KeyboardEvent),
     Tray(TrayEvent),
+    Element(ElementEvent),
 }
 
 pub enum AppEvent {
@@ -60,4 +61,10 @@ pub enum Key {
     CapsLock,
     Char(char), // 普通の文字記号 例:(a, c, d, !, %, ...)
     Function(u8) // ファンクションキー
+}
+
+pub enum ElementEvent {
+    Clicked,
+    TextChanged(String),
+    EditingFinished(String),
 }

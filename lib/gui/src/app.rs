@@ -1,17 +1,19 @@
+use std::fmt;
 use std::path::Path;
 
 pub mod event;
-pub mod image;
+pub mod instance;
 pub mod tray;
 pub mod window;
-pub mod instance;
+use crate::app::event::Event;
+use crate::app::tray::Tray;
+use crate::app::window::builder::WindowBuilder;
 
-
-#[derive(Debug)]
 pub struct App {
     id: String,
     icon_data: Option<Vec<u8>>,
-    tray: Option<crate::app::tray::Tray>,
+    tray: Option<Tray>,
+    event_handler: Box<dyn Fn(Event) + Send + 'static>,
 }
 
 impl Default for App {
@@ -20,7 +22,19 @@ impl Default for App {
             id: "com.example.app".to_string(),
             icon_data: None,
             tray: None,
+            event_handler: Box::new(|_event| {}),
         }
+    }
+}
+
+impl fmt::Debug for App {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("App")
+            .field("id", &self.id)
+            .field("icon_data", &self.icon_data)
+            .field("tray", &self.tray)
+            .field("event_handler", &"<function>")
+            .finish()
     }
 }
 
@@ -37,35 +51,66 @@ impl App {
     }
 
     /// アプリケーションにトレイを設定する
-    pub fn with_tray(mut self, tray: crate::app::tray::Tray) -> Self {
+    pub fn with_tray(mut self, tray: Tray) -> Self {
         self.tray = Some(tray);
         self
     }
 
     /// ファイルを追加する
     pub fn add_file(&mut self, _path: &Path, _content: &[u8]) {
-        // TODO: Implement add_file
+        // TODO: Implement add_file (Qt resource system or similar)
     }
 
     /// アイコンを設定する
-    pub fn set_icon(&mut self, path: &Path) {
+    pub fn set_icon(&mut self, _path: &Path) {
         // TODO: Implement reading icon from path and setting icon_data
         // For now, just store the path (or load it if feasible)
     }
 
     /// アイコンを設定する
-    pub fn with_icon(&mut self, icon: &[u8]) {
+    pub fn with_icon(mut self, icon: &[u8]) -> Self {
         self.icon_data = Some(icon.to_vec());
+        self
+    }
+
+    /// 新しいウィンドウビルダーを作成する
+    pub fn new_window_builder() -> WindowBuilder {
+        WindowBuilder::new()
+    }
+
+    /// 新しいトレイを作成する
+    pub fn new_tray() -> Tray {
+        Tray::new()
     }
 
     /// アプリケーションを開始する。スレッドを停止しない。
-    pub fn start(&self) -> instance::app::AppInstance {
-        todo!()
+    pub fn start(&mut self) -> instance::app::AppInstance {
+        // Qt関連のコードは後回し
+        instance::app::AppInstance
     }
 
     /// アプリケーションを開始する。スレッドはアプリが停止するまでそこで停止する
     pub fn run(&self) {
-        todo!()
+        // Qt関連のコードは後回し
+    }
+
+    /// イベントハンドラを設定する
+    pub fn handle_event<F>(&mut self, handler: F)
+    where
+        F: Fn(Event) + Send + 'static,
+    {
+        self.event_handler = Box::new(handler);
+    }
+
+    // 内部イベントディスパッチャ
+    fn _dispatch_event(&self, event: Event) {
+        let handler = &self.event_handler;
+        handler(event);
     }
 }
 
+impl Drop for App {
+    fn drop(&mut self) {
+        // Qt関連のクリーンアップは後回し
+    }
+}

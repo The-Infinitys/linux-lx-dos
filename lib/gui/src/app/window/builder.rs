@@ -1,5 +1,5 @@
-use crate::app::window::Window;
 use crate::app::window::element::Element;
+use crate::app::window::Window;
 pub struct WindowBuilder {
     title: String,
     width: u32,
@@ -25,14 +25,10 @@ impl WindowBuilder {
         self.height = height;
         self
     }
-    pub fn add_element(&mut self, _element:Element)->Self{
+    pub fn add_element(&mut self, _element: Element) -> Self {
         todo!()
     }
     pub fn build(self) -> Window {
-        Window {
-            title: self.title,
-            width: self.width,
-            height: self.height,
-        }
+        todo!()
     }
 }
