@@ -3,9 +3,7 @@ use crate::LxDosError;
 use crate::command;
 use crate::utils::args::Args;
 use crate::utils::args::Commands;
-mod gui;
-mod run;
-pub use gui::*;
+
 #[derive(Debug)]
 pub struct App {
     pub lx_dos: LxDos,
