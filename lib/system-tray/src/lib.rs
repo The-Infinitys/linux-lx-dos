@@ -17,6 +17,9 @@ pub struct SystemTray {
     tray: Arc<Mutex<TrayWrapper>>,
     event_sender: mpsc::Sender<Event>,
     event_receiver: Arc<Mutex<mpsc::Receiver<Event>>>,
+    event_handler: Arc<Mutex<Option<Box<dyn Fn(Event) -> EventHandleReturn + Send + 'static>>>>,
+    stop_signal_sender: mpsc::Sender<()>,
+    stop_signal_receiver: Arc<Mutex<mpsc::Receiver<()>>>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -63,6 +66,7 @@ impl Menu {
 impl SystemTray {
     pub fn new(name: &str, id: &str) -> Self {
         let (event_sender, event_receiver) = mpsc::channel();
+        let (stop_signal_sender, stop_signal_receiver) = mpsc::channel();
         let c_name = CString::new(name).unwrap();
         let c_id = CString::new(id).unwrap();
         let tray = unsafe { bind::system_tray_new(c_name.as_ptr(), c_id.as_ptr()) };
@@ -70,6 +74,9 @@ impl SystemTray {
             tray: Arc::new(Mutex::new(TrayWrapper(tray))),
             event_sender,
             event_receiver: Arc::new(Mutex::new(event_receiver)),
+            event_handler: Arc::new(Mutex::new(None)),
+            stop_signal_sender,
+            stop_signal_receiver: Arc::new(Mutex::new(stop_signal_receiver)),
         }
     }
 
@@ -111,27 +118,32 @@ impl SystemTray {
     }
 
     pub fn handle_event<F: Fn(Event) -> EventHandleReturn + Send + 'static>(
-        &self,
+        &mut self,
         handle_function: F,
     ) {
-        let receiver = self.event_receiver.clone();
-        let tray_clone = self.clone(); // SystemTrayのクローンを作成
-        thread::spawn(move || {
-            let receiver = receiver.lock().unwrap();
-            for event in receiver.iter() {
-                let result = handle_function(event);
-                match result {
-                    EventHandleReturn::Continue => continue,
-                    EventHandleReturn::Break => {
-                        tray_clone.stop();
-                        break;
-                    }
-                }
-            }
-        });
+        *self.event_handler.lock().unwrap() = Some(Box::new(handle_function));
     }
 
     pub fn run(&self) {
+        let event_receiver = self.event_receiver.clone();
+        let event_handler = self.event_handler.clone();
+        let stop_signal_receiver = self.stop_signal_receiver.clone();
+
+        thread::spawn(move || {
+            loop {
+                if let Ok(event) = event_receiver.lock().unwrap().recv() {
+                    if let Some(handler) = event_handler.lock().unwrap().as_ref() {
+                        if handler(event) == EventHandleReturn::Break {
+                            break;
+                        }
+                    }
+                }
+                if stop_signal_receiver.lock().unwrap().try_recv().is_ok() {
+                    break;
+                }
+            }
+        });
+
         let tray = self.tray.lock().unwrap();
         unsafe {
             bind::system_tray_run(tray.0);
@@ -139,6 +151,7 @@ impl SystemTray {
     }
 
     pub fn stop(&self) {
+        self.stop_signal_sender.send(()).unwrap();
         // system_tray_exitはグローバルな関数なので、trayのロックは不要
         unsafe {
             bind::system_tray_exit();
