@@ -1,3 +1,0 @@
-[submodule "lib/gui"]
-	path = lib/gui
-	url = https://github.com/The-Infinitys/rust.gui
