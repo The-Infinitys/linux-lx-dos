@@ -1,47 +1,124 @@
 mod bind;
 mod error;
+
+use std::{ffi::CString, sync::{mpsc, Arc, Mutex}, thread};
 pub use error::SystemTrayError as Error;
+
+struct ThreadSafeSystemTray(*mut bind::SystemTray);
+unsafe impl Send for ThreadSafeSystemTray {}
+unsafe impl Sync for ThreadSafeSystemTray {}
+
 pub struct SystemTray {
-    // TODO: 必要な要素を判断し、入れておく
+    tray: Arc<Mutex<ThreadSafeSystemTray>>,
+    event_sender: mpsc::Sender<Event>,
+    event_receiver: Arc<Mutex<mpsc::Receiver<Event>>>,
 }
+
 pub enum Event {
     Click,
-    Menu(String), // idを表す文字列
+    Menu(String),
 }
-pub struct EventSender {}
+
+pub struct EventSender {
+    sender: mpsc::Sender<Event>,
+}
+
 impl EventSender {
     pub fn send(&self, event: Event) -> Result<(), Error> {
-        Ok(()) // SystemTrayが破棄されていた場合などにエラーが出るようにしてほしいです。
+        self.sender.send(event).map_err(|_| Error::SendError)
     }
 }
+
 impl From<&SystemTray> for EventSender {
     fn from(value: &SystemTray) -> Self {
-        Self {}
+        Self {
+            sender: value.event_sender.clone(),
+        }
     }
 }
+
 pub struct Menu {
-    // TODO: 必要な要素を判断し、入れておく。
+    text: String,
+    id: String,
 }
+
 impl Menu {
-    pub fn new(context: String, id: String) -> Self {
-        Self {}
+    pub fn new(text: String, id: String) -> Self {
+        Self { text, id }
     }
 }
+
 impl SystemTray {
     pub fn new() -> Self {
-        todo!()
+        let (event_sender, event_receiver) = mpsc::channel();
+        let tray = unsafe { bind::system_tray_new() };
+        Self {
+            tray: Arc::new(Mutex::new(ThreadSafeSystemTray(tray))),
+            event_sender,
+            event_receiver: Arc::new(Mutex::new(event_receiver)),
+        }
     }
+
     pub fn menu(self, menu: Menu) -> Self {
+        let text = CString::new(menu.text).unwrap();
+        let id = CString::new(menu.id).unwrap();
+        let sender = self.event_sender.clone();
+
+        unsafe {
+            bind::system_tray_add_menu_item(
+                self.tray.lock().unwrap().0,
+                text.as_ptr(),
+                Some(Self::menu_callback),
+                Box::into_raw(Box::new((sender, id))) as *mut _,
+            );
+        }
         self
     }
-    pub fn icon(self, icon_data: &[u8], icon_format: &str) -> Self {
+
+    extern "C" fn menu_callback(user_data: *mut std::ffi::c_void) {
+        let (sender, id) = unsafe { *Box::from_raw(user_data as *mut (mpsc::Sender<Event>, CString)) };
+        sender
+            .send(Event::Menu(id.into_string().unwrap()))
+            .unwrap();
+    }
+
+    pub fn icon(self, icon_path: &str) -> Self {
+        let icon_path = CString::new(icon_path).unwrap();
+        unsafe {
+            bind::system_tray_set_icon(self.tray.lock().unwrap().0, icon_path.as_ptr());
+        }
         self
     }
-    pub fn handle_event<F: Fn(Event)>(handle_function: F) {}
-    pub fn run(&mut self) {} //スレッドを停止し、システムトレイを開始する
-    pub fn start(&mut self) {} // スレッドを停止せずに、システムトレイを開始する。
-    pub fn stop(&mut self) {} // システムトレイを停止する。
-    pub fn send_event(event: Event) {}
+
+    pub fn handle_event<F: Fn(Event) + Send + 'static>(self, handle_function: F) {
+        let receiver = self.event_receiver.clone();
+        thread::spawn(move || {
+            let receiver = receiver.lock().unwrap();
+            for event in receiver.iter() {
+                handle_function(event);
+            }
+        });
+    }
+
+    pub fn run(&mut self) {
+        unsafe {
+            bind::system_tray_run(self.tray.lock().unwrap().0);
+        }
+    }
+
+    pub fn start(&mut self) {
+        let tray = self.tray.clone();
+        thread::spawn(move || unsafe {
+            bind::system_tray_run(tray.lock().unwrap().0);
+        });
+    }
+
+    pub fn stop(&mut self) {
+        unsafe {
+            bind::system_tray_exit(self.tray.lock().unwrap().0);
+        }
+    }
+
     pub fn event_sender(&self) -> EventSender {
         EventSender::from(self)
     }
@@ -52,8 +129,11 @@ impl Default for SystemTray {
         Self::new()
     }
 }
+
 impl Drop for SystemTray {
     fn drop(&mut self) {
-        self.stop();
+        unsafe {
+            bind::system_tray_delete(self.tray.lock().unwrap().0);
+        }
     }
 }
