@@ -4,12 +4,8 @@ mod error;
 use std::{ffi::CString, sync::{mpsc, Arc, Mutex}, thread};
 pub use error::SystemTrayError as Error;
 
-struct ThreadSafeSystemTray(*mut bind::SystemTray);
-unsafe impl Send for ThreadSafeSystemTray {}
-unsafe impl Sync for ThreadSafeSystemTray {}
-
 pub struct SystemTray {
-    tray: Arc<Mutex<ThreadSafeSystemTray>>,
+    tray: *mut bind::SystemTray,
     event_sender: mpsc::Sender<Event>,
     event_receiver: Arc<Mutex<mpsc::Receiver<Event>>>,
 }
@@ -49,24 +45,26 @@ impl Menu {
 }
 
 impl SystemTray {
-    pub fn new() -> Self {
+    pub fn new(name: &str, id: &str) -> Self {
         let (event_sender, event_receiver) = mpsc::channel();
-        let tray = unsafe { bind::system_tray_new() };
+        let c_name = CString::new(name).unwrap();
+        let c_id = CString::new(id).unwrap();
+        let tray = unsafe { bind::system_tray_new(c_name.as_ptr(), c_id.as_ptr()) };
         Self {
-            tray: Arc::new(Mutex::new(ThreadSafeSystemTray(tray))),
+            tray,
             event_sender,
             event_receiver: Arc::new(Mutex::new(event_receiver)),
         }
     }
 
-    pub fn menu(self, menu: Menu) -> Self {
+    pub fn menu(&mut self, menu: Menu) -> &mut Self {
         let text = CString::new(menu.text).unwrap();
         let id = CString::new(menu.id).unwrap();
         let sender = self.event_sender.clone();
 
         unsafe {
             bind::system_tray_add_menu_item(
-                self.tray.lock().unwrap().0,
+                self.tray,
                 text.as_ptr(),
                 Some(Self::menu_callback),
                 Box::into_raw(Box::new((sender, id))) as *mut _,
@@ -82,15 +80,20 @@ impl SystemTray {
             .unwrap();
     }
 
-    pub fn icon(self, icon_path: &str) -> Self {
-        let icon_path = CString::new(icon_path).unwrap();
+    pub fn icon(&mut self, icon_data: &[u8], icon_format: &str) -> &mut Self {
+        let format = CString::new(icon_format).unwrap();
         unsafe {
-            bind::system_tray_set_icon(self.tray.lock().unwrap().0, icon_path.as_ptr());
+            bind::system_tray_set_icon(
+                self.tray,
+                icon_data.as_ptr(),
+                icon_data.len(),
+                format.as_ptr(),
+            );
         }
         self
     }
 
-    pub fn handle_event<F: Fn(Event) + Send + 'static>(self, handle_function: F) {
+    pub fn handle_event<F: Fn(Event) + Send + 'static>(&self, handle_function: F) {
         let receiver = self.event_receiver.clone();
         thread::spawn(move || {
             let receiver = receiver.lock().unwrap();
@@ -102,20 +105,13 @@ impl SystemTray {
 
     pub fn run(&mut self) {
         unsafe {
-            bind::system_tray_run(self.tray.lock().unwrap().0);
+            bind::system_tray_run(self.tray);
         }
-    }
-
-    pub fn start(&mut self) {
-        let tray = self.tray.clone();
-        thread::spawn(move || unsafe {
-            bind::system_tray_run(tray.lock().unwrap().0);
-        });
     }
 
     pub fn stop(&mut self) {
         unsafe {
-            bind::system_tray_exit(self.tray.lock().unwrap().0);
+            bind::system_tray_exit();
         }
     }
 
@@ -126,14 +122,14 @@ impl SystemTray {
 
 impl Default for SystemTray {
     fn default() -> Self {
-        Self::new()
+        Self::new("default", "default")
     }
 }
 
 impl Drop for SystemTray {
     fn drop(&mut self) {
         unsafe {
-            bind::system_tray_delete(self.tray.lock().unwrap().0);
+            bind::system_tray_delete(self.tray);
         }
     }
 }
