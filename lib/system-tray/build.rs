@@ -6,7 +6,7 @@ fn main() {
     let dst = cmake::build("lib");
 
     println!("cargo:rustc-link-search=native={}/lib", dst.display());
-    println!("cargo:rustc-link-lib=static=SystemTray");
+    println!("cargo:rustc-link-lib=static=qt6-bind");
     println!("cargo:rustc-link-lib=Qt6Widgets");
     println!("cargo:rustc-link-lib=Qt6Gui");
     println!("cargo:rustc-link-lib=Qt6Core");

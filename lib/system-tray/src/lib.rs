@@ -3,53 +3,39 @@ mod error;
 
 pub use error::SystemTrayError as Error;
 use std::{
-    ffi::CString,
-    sync::{mpsc, Arc, Mutex},
-    thread,
+    ffi::{c_char, CString},
+    sync::{Arc, Mutex},
+    thread::JoinHandle,
 };
 
-struct TrayWrapper(*mut bind::SystemTray);
-unsafe impl Send for TrayWrapper {}
-unsafe impl Sync for TrayWrapper {}
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+struct SafeQtAppHandle(*mut bind::QtAppHandle);
+
+unsafe impl Send for SafeQtAppHandle {}
+
+impl SafeQtAppHandle {
+    pub unsafe fn new(ptr: *mut bind::QtAppHandle) -> Self {
+        Self(ptr)
+    }
+
+    pub fn as_ptr(&self) -> *mut bind::QtAppHandle {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Event {
+    None,
+    TrayClicked,
+    TrayDoubleClicked,
+    MenuItemClicked(String),
+}
 
 #[derive(Clone)]
 pub struct SystemTray {
-    tray: Arc<Mutex<TrayWrapper>>,
-    event_sender: mpsc::Sender<Event>,
-    event_receiver: Arc<Mutex<mpsc::Receiver<Event>>>,
-    event_handler: Arc<Mutex<Option<Box<dyn Fn(Event) -> EventHandleReturn + Send + 'static>>>>,
-    stop_signal_sender: mpsc::Sender<()>,
-    stop_signal_receiver: Arc<Mutex<mpsc::Receiver<()>>>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum Event {
-    Click,
-    Menu(String),
-}
-#[derive(Debug, Default, Eq, PartialEq)]
-pub enum EventHandleReturn {
-    #[default]
-    Continue,
-    Break,
-}
-
-pub struct EventSender {
-    sender: mpsc::Sender<Event>,
-}
-
-impl EventSender {
-    pub fn send(&self, event: Event) -> Result<(), Error> {
-        self.sender.send(event).map_err(|_| Error::SendError)
-    }
-}
-
-impl From<&SystemTray> for EventSender {
-    fn from(value: &SystemTray) -> Self {
-        Self {
-            sender: value.event_sender.clone(),
-        }
-    }
+    handle: Arc<Mutex<SafeQtAppHandle>>,
+    instance: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 pub struct Menu {
@@ -64,102 +50,89 @@ impl Menu {
 }
 
 impl SystemTray {
-    pub fn new(name: &str, id: &str) -> Self {
-        let (event_sender, event_receiver) = mpsc::channel();
-        let (stop_signal_sender, stop_signal_receiver) = mpsc::channel();
-        let c_name = CString::new(name).unwrap();
-        let c_id = CString::new(id).unwrap();
-        let tray = unsafe { bind::system_tray_new(c_name.as_ptr(), c_id.as_ptr()) };
+    pub fn new(_name: &str, id: &str) -> Self {
+        let c_id = CString::new(id).map_err(Error::Ffi).unwrap();
+        let handle = unsafe { bind::create_qt_app() };
+        let safe_handle = unsafe { SafeQtAppHandle::new(handle) };
+        unsafe {
+            bind::set_app_id(safe_handle.as_ptr(), c_id.as_ptr());
+            bind::init_tray(safe_handle.as_ptr());
+        }
         Self {
-            tray: Arc::new(Mutex::new(TrayWrapper(tray))),
-            event_sender,
-            event_receiver: Arc::new(Mutex::new(event_receiver)),
-            event_handler: Arc::new(Mutex::new(None)),
-            stop_signal_sender,
-            stop_signal_receiver: Arc::new(Mutex::new(stop_signal_receiver)),
+            handle: Arc::new(Mutex::new(safe_handle)),
+            instance: Arc::new(Mutex::new(None)),
         }
     }
 
-    pub fn menu(&mut self, menu: Menu) -> &mut Self {
-        let text = CString::new(menu.text).unwrap();
-        let id = CString::new(menu.id).unwrap();
-        let sender = self.event_sender.clone();
-
+    pub fn menu(self, menu: Menu) -> Self {
+        let c_text = CString::new(menu.text).map_err(Error::Ffi).unwrap();
+        let c_id = CString::new(menu.id).map_err(Error::Ffi).unwrap();
         unsafe {
-            let tray = self.tray.lock().unwrap();
-            bind::system_tray_add_menu_item(
-                tray.0,
-                text.as_ptr(),
-                Some(Self::menu_callback),
-                Box::into_raw(Box::new((sender, id))) as *mut _,
+            bind::add_tray_menu_item(
+                self.handle.lock().unwrap().as_ptr(),
+                c_text.as_ptr(),
+                c_id.as_ptr(),
             );
         }
         self
     }
 
-    extern "C" fn menu_callback(user_data: *mut std::ffi::c_void) {
-        let (sender, id) =
-            unsafe { *Box::from_raw(user_data as *mut (mpsc::Sender<Event>, CString)) };
-        sender.send(Event::Menu(id.into_string().unwrap())).unwrap();
-    }
-
-    pub fn icon(&mut self, icon_data: &[u8], icon_format: &str) -> &mut Self {
-        let format = CString::new(icon_format).unwrap();
+    pub fn icon(self, icon_data: &'static [u8], icon_format: &str) -> Self {
+        let c_format = CString::new(icon_format).map_err(Error::Ffi).unwrap();
         unsafe {
-            let tray = self.tray.lock().unwrap();
-            bind::system_tray_set_icon(
-                tray.0,
+            bind::set_app_icon_from_data(
+                self.handle.lock().unwrap().as_ptr(),
                 icon_data.as_ptr(),
                 icon_data.len(),
-                format.as_ptr(),
+                c_format.as_ptr(),
             );
         }
         self
-    }
-
-    pub fn handle_event<F: Fn(Event) -> EventHandleReturn + Send + 'static>(
-        &mut self,
-        handle_function: F,
-    ) {
-        *self.event_handler.lock().unwrap() = Some(Box::new(handle_function));
     }
 
     pub fn run(&self) {
-        let event_receiver = self.event_receiver.clone();
-        let event_handler = self.event_handler.clone();
-        let stop_signal_receiver = self.stop_signal_receiver.clone();
-
-        thread::spawn(move || {
-            loop {
-                if let Ok(event) = event_receiver.lock().unwrap().recv() {
-                    if let Some(handler) = event_handler.lock().unwrap().as_ref() {
-                        if handler(event) == EventHandleReturn::Break {
-                            break;
-                        }
-                    }
-                }
-                if stop_signal_receiver.lock().unwrap().try_recv().is_ok() {
-                    break;
-                }
+        let handle = {
+            let handle_guard = self.handle.lock().unwrap();
+            *handle_guard
+        };
+        let join_handle = std::thread::spawn(move || {
+            let mut argv: Vec<*mut c_char> = Vec::new();
+            let result = unsafe { bind::run_qt_app(handle.as_ptr(), 0, argv.as_mut_ptr()) };
+            if result != 0 {
+                eprintln!("Qt application exited with code: {}", result);
             }
         });
-
-        let tray = self.tray.lock().unwrap();
-        unsafe {
-            bind::system_tray_run(tray.0);
-        }
+        *self.instance.lock().unwrap() = Some(join_handle);
     }
 
     pub fn stop(&self) {
-        self.stop_signal_sender.send(()).unwrap();
-        // system_tray_exitはグローバルな関数なので、trayのロックは不要
-        unsafe {
-            bind::system_tray_exit();
+        {
+            let handle = self.handle.lock().unwrap();
+            unsafe {
+                bind::quit_qt_app(handle.as_ptr());
+            }
+        }
+        if let Some(join_handle) = self.instance.lock().unwrap().take() {
+            join_handle.join().unwrap_or_else(|e| {
+                eprintln!("Failed to join Qt thread: {:?}", e);
+            });
         }
     }
 
-    pub fn event_sender(&self) -> EventSender {
-        EventSender::from(self)
+    pub fn poll_event(&self) -> Result<Event, Error> {
+        let handle = self.handle.lock().unwrap();
+        let event = unsafe { bind::poll_event(handle.as_ptr()) };
+        match event.type_ {
+            bind::AppEventType_None => Ok(Event::None),
+            bind::AppEventType_TrayClicked => Ok(Event::TrayClicked),
+            bind::AppEventType_TrayDoubleClicked => Ok(Event::TrayDoubleClicked),
+            bind::AppEventType_MenuItemClicked => {
+                let c_str = unsafe { CString::from_raw(event.menu_id_str as *mut c_char) };
+                let rust_str = c_str.to_string_lossy().into_owned();
+                Ok(Event::MenuItemClicked(rust_str))
+            }
+            _ => Err(Error::PollEventError("Unknown event type".to_string())),
+        }
     }
 }
 
@@ -171,9 +144,12 @@ impl Default for SystemTray {
 
 impl Drop for SystemTray {
     fn drop(&mut self) {
-        let tray = self.tray.lock().unwrap();
-        unsafe {
-            bind::system_tray_delete(tray.0);
+        self.stop();
+        let handle = self.handle.lock().unwrap();
+        if !handle.as_ptr().is_null() {
+            unsafe {
+                bind::cleanup_qt_app(handle.as_ptr());
+            }
         }
     }
 }

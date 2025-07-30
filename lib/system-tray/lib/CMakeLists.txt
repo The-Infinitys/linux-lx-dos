@@ -1,15 +1,34 @@
 cmake_minimum_required(VERSION 3.16)
-project(SystemTray)
+
+project(qt6-bind VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 COMPONENTS Widgets REQUIRED)
+option(ENABLE_LINTER "Enable clang-tidy linter" ON)
+option(ENABLE_FORMATTER "Enable clang-format formatter" ON)
 
-add_library(SystemTray STATIC src/lib.cpp)
+set(CMAKE_AUTOMOC ON)
 
-target_include_directories(SystemTray PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+qt_standard_project_setup()
 
-target_link_libraries(SystemTray PRIVATE Qt6::Widgets)
+add_library(qt6-bind STATIC
+        src/lib.cpp
+        src/modules/qt-app.cpp
+)
+target_include_directories(qt6-bind PUBLIC src)
+target_link_libraries(qt6-bind PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
-install(TARGETS SystemTray DESTINATION lib)
+# ---
+## Add an executable for testing
+add_executable(qt6-bind-exec src/main.cpp)
+target_link_libraries(qt6-bind-exec PRIVATE qt6-bind Qt${QT_VERSION_MAJOR}::Widgets)
+target_include_directories(qt6-bind-exec PRIVATE src) # Ensure src/main.cpp can find headers from src/
+
+# ---
+include(GNUInstallDirs)
+install(TARGETS qt6-bind
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
