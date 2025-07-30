@@ -6,19 +6,21 @@ fn main() {
     let icon_data = include_bytes!("../icon.svg");
 
     tray.icon(icon_data, "svg")
-        .menu(Menu::new("Quit".to_string(), "quit".to_string()));
+        .menu(Menu::new("Quit".to_string(), "quit".to_string()))
+        .menu(Menu::new("Hello".to_string(), "hello".to_string()));
 
     tray.handle_event(|event| -> EventHandleReturn {
         match event {
-            Event::Menu(id) => {
-                if id == "quit" {
-                    return EventHandleReturn::Break;
-                } else {
-                    return EventHandleReturn::Continue;
+            Event::Menu(id) => match id.as_str() {
+                "quit" => return EventHandleReturn::Break,
+                "hello" => {
+                    println!("Hello");
                 }
-            }
+                _ => {}
+            },
             _ => return EventHandleReturn::Continue,
         }
+        return EventHandleReturn::Continue;
     });
 
     tray.run();
