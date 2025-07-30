@@ -56,7 +56,6 @@ impl SystemTray {
         let safe_handle = unsafe { SafeQtAppHandle::new(handle) };
         unsafe {
             bind::set_app_id(safe_handle.as_ptr(), c_id.as_ptr());
-            bind::init_tray(safe_handle.as_ptr());
         }
         Self {
             handle: Arc::new(Mutex::new(safe_handle)),
@@ -78,14 +77,28 @@ impl SystemTray {
     }
 
     pub fn icon(self, icon_data: &'static [u8], icon_format: &str) -> Self {
-        let c_format = CString::new(icon_format).map_err(Error::Ffi).unwrap();
+        let c_format = match CString::new(icon_format) {
+            Ok(fmt) => fmt,
+            Err(e) => {
+                eprintln!("Failed to create CString for icon format: {}", e);
+                return self;
+            }
+        };
+        eprintln!(
+            "Setting icon: format={}, data_len={}",
+            icon_format,
+            icon_data.len()
+        );
         unsafe {
             bind::set_app_icon_from_data(
                 self.handle.lock().unwrap().as_ptr(),
                 icon_data.as_ptr(),
                 icon_data.len(),
                 c_format.as_ptr(),
-            );
+            )
+        }
+        unsafe {
+            bind::init_tray(self.handle.lock().unwrap().as_ptr());
         }
         self
     }
