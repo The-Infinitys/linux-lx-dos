@@ -8,4 +8,6 @@ pub enum LxDosError {
     Message(String),
     #[error("{0}")]
     Crossbeam(#[from] crossbeam_channel::RecvError),
+    #[error("{0}")]
+    Iced(#[from] iced::Error),
 }

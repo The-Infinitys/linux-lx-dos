@@ -1,12 +1,15 @@
 use super::lx_dos::LxDos;
+use crate::LxDosError;
 use crate::command;
 use crate::utils::args::Args;
 use crate::utils::args::Commands;
-use crate::LxDosError;
+mod gui;
 mod run;
-#[derive(Default, Debug)]
+pub use gui::*;
+#[derive(Debug)]
 pub struct App {
     pub lx_dos: LxDos,
+    value: u32,
 }
 
 impl App {
@@ -19,7 +22,12 @@ impl App {
             Commands::Run => command::run(),
         }
     }
-    pub fn run(&mut self) -> Result<(), LxDosError> {
-        run::run(self)
+}
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            lx_dos: LxDos::default(),
+            value: 0,
+        }
     }
 }
