@@ -15,7 +15,6 @@ qt_standard_project_setup()
 
 add_library(qt6-bind STATIC
         src/lib.cpp
-        src/modules/qt-app.cpp
 )
 target_include_directories(qt6-bind PUBLIC src)
 target_link_libraries(qt6-bind PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)

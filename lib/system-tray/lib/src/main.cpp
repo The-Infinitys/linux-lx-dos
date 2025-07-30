@@ -1,4 +1,4 @@
-#include "modules/qt-app.hpp"
+#include "lib.hpp"
 #include <vector>
 #include <string>
 #include <QDebug> // Add for debugging

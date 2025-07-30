@@ -12,10 +12,10 @@ fn main() {
 
     // Set a placeholder icon (minimal PNG for testing)
     static ICON: &[u8] = include_bytes!("../icon.svg");
-    tray = tray.icon(ICON, "PNG");
+    tray = tray.icon(ICON, "SVG");
 
     // Start the system tray event loop
-    tray.run();
+    tray.start();
 
     // Poll for events in the main thread
     loop {
