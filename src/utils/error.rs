@@ -10,4 +10,6 @@ pub enum LxDosError {
     Crossbeam(#[from] crossbeam_channel::RecvError),
     #[error("{0}")]
     Iced(#[from] iced::Error),
+    #[error("{0}")]
+    SystemTray(#[from] system_tray::Error),
 }
