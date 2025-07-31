@@ -1,11 +1,10 @@
 use crate::LxDosError;
 use crate::modules::app::App;
-use gui::{gio::prelude::ApplicationExt, prelude::GtkWindowExt};
 use system_tray::{Event as SystemTrayEvent, Menu as SystemTrayMenu};
 
 pub fn run() -> Result<(), LxDosError> {
     // Appインスタンスを可変にする必要があります。なぜなら、add_guiメソッドがAppの状態を変更するためです。
-    let mut app = App::default();
+    // let app = App::default();
 
     // システムトレイのアイコンとメニューを設定します。
     let tray = App::system_tray()
@@ -19,6 +18,7 @@ pub fn run() -> Result<(), LxDosError> {
         match tray.poll_event()? {
             SystemTrayEvent::MenuItemClicked(id) => match id.as_str() {
                 "open" => {
+                    use gui::prelude::*;
                     // 新しいGUIアプリケーションインスタンスを作成します。
                     let gui = App::gui_app();
                     gui.connect_activate(|gui| {
@@ -31,7 +31,7 @@ pub fn run() -> Result<(), LxDosError> {
                         // ウィンドウを表示します。
                         window.present();
                     });
-                    app.add_gui(gui)?;
+                    gui.run();
                 }
                 "quit" => {
                     // 「Quit」がクリックされたらループを終了します。

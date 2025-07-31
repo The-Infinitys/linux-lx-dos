@@ -12,4 +12,6 @@ pub enum LxDosError {
     SystemTray(#[from] system_tray::Error),
     #[error("{0}")]
     BoolError(#[from] gui::glib::BoolError),
+    #[error("process was exit with {0}")]
+    Exit(u8),
 }

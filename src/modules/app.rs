@@ -5,19 +5,12 @@ use crate::utils::args::Args;
 use crate::utils::args::Commands;
 use gui::builders::ApplicationWindowBuilder;
 use gui::gio::prelude::ApplicationExt;
-use gui::glib;
-use std::sync::Arc;
-use std::sync::Mutex;
 use system_tray::SystemTray;
-// GUIスレッドに送信するコマンドを定義します。
-enum GuiCommand {
-    Quit,
-}
 
 // 各GUIアプリケーションの管理に必要な要素を保持する構造体です。
 struct GuiManager {
-    quit_sender: std::sync::mpsc::Sender<GuiCommand>,
-    application: Arc<Mutex<gui::Application>>,
+    // quit_sender: std::sync::mpsc::Sender<GuiCommand>,
+    application: gui::Application,
 }
 
 pub struct App {
@@ -61,25 +54,12 @@ impl App {
     }
 
     pub fn add_gui(&mut self, gui: gui::Application) -> Result<(), LxDosError> {
-        use std::sync::Arc;
-        use std::sync::Mutex;
-        let (quit_sender, quit_receiver) = std::sync::mpsc::channel::<GuiCommand>();
-        let gui = Arc::new(Mutex::new(gui));
-        let gui_clone = Arc::clone(&gui);
-        glib::MainContext::default().with_thread_default(move || {
-            while let Ok(cmd) = quit_receiver.recv() {
-                match cmd {
-                    GuiCommand::Quit => {
-                        gui_clone.lock().unwrap().quit();
-                        break;
-                    }
-                }
-            }
-        })?;
-
+        use gui::prelude::*;
+        // let (_quit_sender, _quit_receiver) = std::sync::mpsc::channel::<GuiCommand>();
+        gui.run();
         // Store the manager for this GUI application
         self.gui_managers.push(GuiManager {
-            quit_sender,
+            // quit_sender,
             application: gui,
         });
         Ok(())
@@ -122,11 +102,11 @@ impl Drop for App {
     fn drop(&mut self) {
         for manager in self.gui_managers.drain(..) {
             // 各GUIアプリケーションに終了コマンドを送信します。
-            if let Err(e) = manager.quit_sender.send(GuiCommand::Quit) {
-                eprintln!("GUI終了コマンドの送信に失敗しました: {:?}", e);
-            }
-            // アプリケーションを明示的に終了します。
-            manager.application.lock().unwrap().quit();
+            // if let Err(e) = manager.quit_sender.send(GuiCommand::Quit) {
+            //     eprintln!("GUI終了コマンドの送信に失敗しました: {:?}", e);
+            // }
+            // // アプリケーションを明示的に終了します。
+            manager.application.quit();
         }
     }
 }
