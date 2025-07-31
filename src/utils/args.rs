@@ -34,3 +34,16 @@ pub enum Commands {
     /// Show welcome message
     Welcome,
 }
+
+#[derive(Debug, Parser)]
+#[command(author, version, about, long_about = None)]
+pub struct InnerArgs {
+    pub parent_pid: usize,
+    #[command(subcommand)]
+    pub command: InnerSubCommands,
+}
+#[derive(Debug, Subcommand)]
+pub enum InnerSubCommands {
+    /// Show Window
+    Window,
+}
