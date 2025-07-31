@@ -1,5 +1,5 @@
-use super::super::modules::app::App;
+// use super::super::modules::app::App;
 use crate::LxDosError;
 pub fn run() -> Result<(), LxDosError> {
-    
+    Ok(())
 }
