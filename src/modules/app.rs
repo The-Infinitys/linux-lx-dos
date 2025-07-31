@@ -9,7 +9,6 @@ use crate::utils::args::Commands;
 
 pub struct App {
     pub lx_dos: LxDos,
-    pub system_tray: SystemTray,
     pub gui: gui::Application,
 }
 impl App {
@@ -21,6 +20,15 @@ impl App {
             Commands::Welcome => command::welcome(),
             Commands::Run => command::run(),
         }
+    }
+    pub fn system_tray() -> SystemTray {
+        SystemTray::new(&Self::organization(), &Self::app_id())
+    }
+    pub fn organization() -> String {
+        "LxDos".to_string()
+    }
+    pub fn app_id() -> String {
+        "com.the-infinitys.lx-dos".to_string()
     }
     pub fn window_builder(&self, title: &str) -> ApplicationWindowBuilder {
         use gui::ApplicationWindow;
@@ -50,13 +58,11 @@ impl App {
 }
 impl Default for App {
     fn default() -> Self {
-        let app_id = "com.the-infinitys.lx-dos";
         let flags = gui::gio::ApplicationFlags::HANDLES_OPEN;
         Self {
             lx_dos: LxDos::default(),
-            system_tray: SystemTray::new("LxDos", app_id),
             gui: gui::Application::builder()
-                .application_id(app_id)
+                .application_id(&Self::app_id())
                 .flags(flags)
                 .build(),
         }
