@@ -2,7 +2,7 @@
 name = "linux-lx-dos"
 version = "0.1.0"
 edition = "2024"
-
+build = "build.rs"
 [dependencies]
 clap = { version = "4.5.41", features = ["derive"] }
 crossbeam-channel = "0.5.15"
@@ -10,5 +10,7 @@ env_logger = "0.11.8"
 log = "0.4.27"
 thiserror = "2.0.12"
 system-tray.path = "lib/system-tray"
-gui = { version = "0.10.0", package = "gtk4", features = ["v4_18"] }
 async-channel = "2.5.0"
+slint = "1.12.1"
+[build-dependencies]
+slint-build = "1.12.1"

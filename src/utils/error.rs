@@ -10,8 +10,10 @@ pub enum LxDosError {
     Crossbeam(#[from] crossbeam_channel::RecvError),
     #[error("{0}")]
     SystemTray(#[from] system_tray::Error),
-    #[error("{0}")]
-    BoolError(#[from] gui::glib::BoolError),
     #[error("process was exit with {0}")]
     Exit(u8),
+    #[error("{0}")]
+    SlintPlatFormError(#[from] slint::PlatformError),
+    #[error("{0}")]
+    SlintEventLoopError(#[from] slint::EventLoopError),
 }
