@@ -10,4 +10,6 @@ pub enum LxDosError {
     Crossbeam(#[from] crossbeam_channel::RecvError),
     #[error("{0}")]
     SystemTray(#[from] system_tray::Error),
+    #[error("{0}")]
+    BoolError(#[from] gui::glib::BoolError),
 }

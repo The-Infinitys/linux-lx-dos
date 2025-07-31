@@ -59,10 +59,10 @@ impl App {
         gui
     }
 
-    pub fn add_gui(&mut self, gui: gui::Application) {
+    pub fn add_gui(&mut self, gui: gui::Application) -> Result<(), LxDosError> {
         let (quit_sender, quit_receiver) = std::sync::mpsc::channel::<GuiCommand>();
         let app_clone = gui.clone();
-        glib::MainContext::default().spawn_local(async move {
+        glib::MainContext::default().with_thread_default(move || {
             while let Ok(cmd) = quit_receiver.recv() {
                 match cmd {
                     GuiCommand::Quit => {
@@ -71,13 +71,14 @@ impl App {
                     }
                 }
             }
-        });
+        })?;
 
         // Store the manager for this GUI application
         self.gui_managers.push(GuiManager {
             quit_sender,
             application: gui,
         });
+        Ok(())
     }
 
     pub fn window_builder(gui: &gui::Application, title: &str) -> ApplicationWindowBuilder {

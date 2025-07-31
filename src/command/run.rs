@@ -31,7 +31,7 @@ pub fn run() -> Result<(), LxDosError> {
                         // ウィンドウを表示します。
                         window.present();
                     });
-                    app.add_gui(gui);
+                    app.add_gui(gui)?;
                 }
                 "quit" => {
                     // 「Quit」がクリックされたらループを終了します。
