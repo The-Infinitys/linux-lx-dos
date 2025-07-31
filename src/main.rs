@@ -1,6 +1,6 @@
 use clap::Parser;
 use linux_lx_dos::command;
-use linux_lx_dos::utils::args::{Args, Commands};
+use linux_lx_dos::utils::args::{Args, Commands, InnerArgs};
 fn main() -> Result<(), linux_lx_dos::LxDosError> {
     if is_frontend() { frontend() } else { backend() }
 }
@@ -37,5 +37,7 @@ fn frontend() -> Result<(), linux_lx_dos::LxDosError> {
     }
 }
 fn backend() -> Result<(), linux_lx_dos::LxDosError> {
+    let args = InnerArgs::parse();
+    println!("{:#?}", args);
     Ok(())
 }
