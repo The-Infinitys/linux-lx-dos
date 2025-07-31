@@ -20,6 +20,5 @@ fn main() -> Result<(), linux_lx_dos::LxDosError> {
         Commands::Start => command::start(),
         Commands::Stop => command::stop(),
         Commands::Welcome => command::welcome(),
-        Commands::Run => command::run(),
     }
 }

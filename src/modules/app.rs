@@ -28,7 +28,6 @@ impl App {
             Commands::Start => command::start(),
             Commands::Stop => command::stop(),
             Commands::Welcome => command::welcome(),
-            Commands::Run => command::run(),
         }
     }
 
