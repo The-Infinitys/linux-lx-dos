@@ -6,8 +6,9 @@ use crate::utils::args::Commands;
 use gui::builders::ApplicationWindowBuilder;
 use gui::gio::prelude::ApplicationExt;
 use gui::glib;
+use std::sync::Arc;
+use std::sync::Mutex;
 use system_tray::SystemTray;
-
 // GUIスレッドに送信するコマンドを定義します。
 enum GuiCommand {
     Quit,
@@ -16,7 +17,7 @@ enum GuiCommand {
 // 各GUIアプリケーションの管理に必要な要素を保持する構造体です。
 struct GuiManager {
     quit_sender: std::sync::mpsc::Sender<GuiCommand>,
-    application: gui::Application,
+    application: Arc<Mutex<gui::Application>>,
 }
 
 pub struct App {
@@ -60,13 +61,16 @@ impl App {
     }
 
     pub fn add_gui(&mut self, gui: gui::Application) -> Result<(), LxDosError> {
+        use std::sync::Arc;
+        use std::sync::Mutex;
         let (quit_sender, quit_receiver) = std::sync::mpsc::channel::<GuiCommand>();
-        let app_clone = gui.clone();
+        let gui = Arc::new(Mutex::new(gui));
+        let gui_clone = Arc::clone(&gui);
         glib::MainContext::default().with_thread_default(move || {
             while let Ok(cmd) = quit_receiver.recv() {
                 match cmd {
                     GuiCommand::Quit => {
-                        app_clone.quit();
+                        gui_clone.lock().unwrap().quit();
                         break;
                     }
                 }
@@ -122,7 +126,7 @@ impl Drop for App {
                 eprintln!("GUI終了コマンドの送信に失敗しました: {:?}", e);
             }
             // アプリケーションを明示的に終了します。
-            manager.application.quit();
+            manager.application.lock().unwrap().quit();
         }
     }
 }
