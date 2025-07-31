@@ -1,0 +1,3 @@
+[submodule "lib/system-tray"]
+	path = lib/system-tray
+	url = https://github.com/The-Infinitys/rust.system-tray
