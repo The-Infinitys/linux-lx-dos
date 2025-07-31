@@ -5,7 +5,7 @@ use crate::utils::args::Args;
 use crate::utils::args::Commands;
 use system_tray::SystemTray;
 pub mod gui;
-
+pub mod instance;
 pub struct App {}
 
 impl App {
