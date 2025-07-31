@@ -1,37 +1,32 @@
+use gui::gio::prelude::ApplicationExtManual;
+use std::rc::Rc; // Import Rc
+use std::cell::RefCell; // Import RefCell
+
 use super::super::modules::app::App;
 use crate::LxDosError;
-use system_tray::Event as SystemTrayEvent;
-use system_tray::Menu as SystemTrayMenu;
+
 pub fn run() -> Result<(), LxDosError> {
-    let mut app = App::default();
-    app.system_tray = app
-        .system_tray
-        .icon(include_bytes!("../../public/icon.svg"), "svg")
-        .menu(SystemTrayMenu::new("Open".to_string(), "open".to_string()))
-        .menu(SystemTrayMenu::new(
-            "Quit App".to_string(),
-            "quit".to_string(),
-        ));
-    app.system_tray.start();
-    fn open() {
-        println!("Open");
-    }
-    fn sleep(millis: u64) {
-        let dur = std::time::Duration::from_millis(millis);
-        std::thread::sleep(dur);
-    }
-    loop {
-        match app.system_tray.poll_event()? {
-            SystemTrayEvent::MenuItemClicked(id) => match id.as_str() {
-                "open" => open(),
-                "quit" => break,
-                _ => {}
-            },
-            SystemTrayEvent::TrayClicked => open(),
-            _ => {}
-        }
-        sleep(50);
-    }
-    app.system_tray.stop();
+    let app = Rc::new(RefCell::new(App::default())); // Wrap app in Rc and RefCell
+    let gui = app.borrow().gui.clone(); // Clone the gui reference
+
+    // Move the Rc<RefCell<App>> into the closure
+    gui.connect_open(move |_gui_app, _f, _hint| {
+        use gui::prelude::*;
+
+        // Borrow app from the RefCell to use it
+        let app_ref = app.borrow();
+        let window = app_ref
+            .window_builder("hello")
+            .width_request(800)
+            .height_request(600)
+            .build();
+        let button = gui::Button::with_label("Click me!");
+        button.connect_clicked(|_| {
+            println!("Clicked!");
+        });
+        window.set_child(Some(&button));
+        window.present();
+    });
+    gui.run();
     Ok(())
 }
