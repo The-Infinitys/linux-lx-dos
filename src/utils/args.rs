@@ -27,12 +27,12 @@ pub struct Args {
 }
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    /// Run Lx-Dos
+    Run,
     /// Start Lx-DOS
     Start,
     /// Stop Lx-DOS
     Stop,
     /// Show welcome message
     Welcome,
-    /// run Lx-DOS
-    Run,
 }

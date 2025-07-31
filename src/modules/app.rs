@@ -1,6 +1,7 @@
 use super::lx_dos::LxDos;
 use crate::LxDosError;
 use crate::command;
+pub mod messages;
 use crate::utils::args::Args;
 use crate::utils::args::Commands;
 use gui::builders::ApplicationWindowBuilder;
