@@ -12,8 +12,4 @@ pub enum LxDosError {
     SystemTray(#[from] system_tray::Error),
     #[error("process was exit with {0}")]
     Exit(u8),
-    #[error("{0}")]
-    SlintPlatFormError(#[from] slint::PlatformError),
-    #[error("{0}")]
-    SlintEventLoopError(#[from] slint::EventLoopError),
 }

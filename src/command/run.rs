@@ -1,10 +1,6 @@
 use crate::LxDosError;
 use crate::modules::app::App;
-use slint::ComponentHandle;
 use system_tray::{Event as SystemTrayEvent, Menu as SystemTrayMenu};
-mod ui {
-    slint::include_modules!();
-}
 pub fn run() -> Result<(), LxDosError> {
     // Appインスタンスを可変にする必要があります。なぜなら、add_guiメソッドがAppの状態を変更するためです。
     // let app = App::default();
@@ -16,9 +12,6 @@ pub fn run() -> Result<(), LxDosError> {
         .menu(SystemTrayMenu::new("Quit".to_string(), "quit".to_string()));
     tray.start();
     fn handle_open() -> Result<(), LxDosError> {
-        let main_window = ui::MainWindow::new()?;
-        main_window.run()?;
-        println!("Open");
         Ok(())
     }
     // システムトレイからのイベントを処理するループ。
