@@ -3,12 +3,18 @@ use gui::{builders::ApplicationWindowBuilder, gio::prelude::ApplicationExtManual
 pub struct Gui {
     gui: gui::Application,
 }
+impl Default for Gui {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Gui {
     // GUIアプリケーションをビルドします。
     pub fn new() -> Self {
         let flags = gui::gio::ApplicationFlags::HANDLES_OPEN;
         let gui = gui::Application::builder()
-            .application_id(&App::app_id())
+            .application_id(App::app_id())
             .flags(flags)
             .build();
         Self { gui }

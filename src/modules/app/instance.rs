@@ -184,6 +184,12 @@ pub struct WindowManager {
     open_windows: HashMap<WindowType, String>, // Tracks window type to pipe_name
 }
 
+impl Default for WindowManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WindowManager {
     pub fn new() -> Self {
         let pipe_name = format!("lxdos_pipe_{}", std::process::id());

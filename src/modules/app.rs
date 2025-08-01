@@ -6,6 +6,7 @@ use crate::utils::args::Args;
 use crate::utils::args::Commands;
 use system_tray::SystemTray;
 pub mod gui;
+#[derive(Default)]
 pub struct App {
     pub windows: instance::WindowManager,
 }
@@ -33,13 +34,6 @@ impl App {
     }
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self {
-            windows: instance::WindowManager::new(),
-        }
-    }
-}
 
 /// `App`構造体がスコープを外れてドロップされる際に、管理しているすべてのGUIアプリケーションを終了します。
 impl Drop for App {
