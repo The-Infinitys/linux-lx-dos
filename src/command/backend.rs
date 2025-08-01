@@ -7,7 +7,9 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
     let _client = Client::connect(pipe_name)?;
     // let message: InstanceMessage = client.recv()?;
     let gui = Gui::new();
-    gui.handler(|app| {
+    let pipe_name = pipe_name.to_string();
+    let pipe_name_clone = pipe_name.clone();
+    gui.handler(move |app| {
         use gui::Button;
         use gui::prelude::*;
         let button = Button::builder()
@@ -19,10 +21,9 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             .build();
 
         // Connect to "clicked" signal of `button`
+        let pipe_name_clone = pipe_name_clone.clone();
         button.connect_clicked(move |_| {
-            // GUI is blocked for 5 seconds after the button is pressed
-            let five_seconds = std::time::Duration::from_secs(5);
-            std::thread::sleep(five_seconds);
+            println!("Hello, World!: {}", pipe_name_clone);
         });
         let window = Gui::window_builder(app, "Lx-DOS Window")
             .child(&button)
