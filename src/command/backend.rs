@@ -1,15 +1,34 @@
 use crate::LxDosError;
 use crate::modules::app::gui::Gui;
 // use crate::modules::app::instance::InstanceMessage;
-use gui::prelude::GtkWindowExt;
-// use instance_pipe::Client;
+use instance_pipe::Client;
 
-pub fn run_backend(_pipe_name: &str) -> Result<(), LxDosError> {
-    // let client = Client::connect(pipe_name)?;
+pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
+    let _client = Client::connect(pipe_name)?;
     // let message: InstanceMessage = client.recv()?;
     let gui = Gui::new();
     gui.handler(|app| {
-        let window = Gui::window_builder(app, "Lx-DOS Window").build();
+        use gui::Button;
+        use gui::prelude::*;
+        let button = Button::builder()
+            .label("Press me!")
+            .margin_top(12)
+            .margin_bottom(12)
+            .margin_start(12)
+            .margin_end(12)
+            .build();
+
+        // Connect to "clicked" signal of `button`
+        button.connect_clicked(move |_| {
+            // GUI is blocked for 5 seconds after the button is pressed
+            let five_seconds = std::time::Duration::from_secs(5);
+            std::thread::sleep(five_seconds);
+        });
+        let window = Gui::window_builder(app, "Lx-DOS Window")
+            .child(&button)
+            .width_request(480)
+            .height_request(360)
+            .build();
         window.present();
     });
     gui.run();

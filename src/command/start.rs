@@ -27,6 +27,12 @@ pub fn start() -> Result<(), LxDosError> {
             }
             _ => {}
         }
+        // match app.windows.poll_event() {
+        //     _ => {
+        //         println!("Recieve");
+        //     }
+        // }
+        std::thread::sleep(std::time::Duration::from_millis(50));
     }
     Ok(())
 }

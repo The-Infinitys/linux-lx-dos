@@ -9,7 +9,6 @@ pub enum InstanceMessage {
 }
 
 pub struct WindowServer {
-    #[allow(dead_code)]
     server: Server,
     child: Option<Child>,
 }
@@ -20,6 +19,9 @@ impl WindowServer {
             server,
             child: Some(child),
         }
+    }
+    pub fn recv(&mut self) -> InstanceMessage {
+        self.server.accept().unwrap().recv().unwrap()
     }
 }
 
@@ -63,7 +65,13 @@ impl WindowManager {
             .push(WindowServer::new(server, Command::new("true").spawn()?)); // ダミー子プロセス
         Ok(())
     }
-
+    pub fn poll_event(&mut self) -> Vec<InstanceMessage> {
+        let mut result = Vec::with_capacity(self.servers.len());
+        for server in &mut self.servers {
+            result.push(server.recv());
+        }
+        result
+    }
     pub fn open_window(&mut self) -> Result<(), LxDosError> {
         // バックエンドプロセスを起動
         let current_exe = env::current_exe()?;
