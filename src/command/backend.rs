@@ -22,7 +22,7 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
     gui.handler(move |app: &gui::Application| {
         use gui::prelude::*;
 
-        let app = Arc::new(Mutex::new(app.clone()));
+        let app_clone = app.clone();
         let (tx, rx): (Sender<InstanceMessage>, Receiver<InstanceMessage>) =
             async_channel::unbounded();
 
@@ -52,11 +52,10 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
         *client_handle_clone_gui_handler.lock().unwrap() = Some(handle);
 
         let main_context = MainContext::default();
-        let app_clone = Arc::clone(&app);
+        let app_clone_for_idle = app_clone.clone();
         let rx = Arc::new(Mutex::new(rx));
 
         let window_client_clone_idle = Arc::clone(&window_client_clone_gui_handler);
-        let app_clone_for_idle = Arc::clone(&app);
         main_context
             .with_thread_default(|| {
                 glib::source::idle_add_local(move || {
@@ -85,14 +84,13 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                         .margin_end(12)
                                         .build();
 
-                                    let app_for_window = app_clone_for_idle.lock().unwrap();
-                                    let window = Gui::window_builder(&app_for_window, window_title)
-                                        .child(&button)
-                                        .width_request(480)
-                                        .height_request(360)
-                                        .build();
+                                    let window =
+                                        Gui::window_builder(&app_clone_for_idle, window_title)
+                                            .child(&button)
+                                            .width_request(480)
+                                            .height_request(360)
+                                            .build();
 
-                                    // ウィンドウへの弱い参照を作成し、循環参照を避ける
                                     let window_weak = window.downgrade();
                                     button.connect_clicked(move |_| {
                                         if let Some(window) = window_weak.upgrade() {
@@ -119,7 +117,6 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                                 e
                                             );
                                         }
-                                        // ここを`Proceed`にすることでウィンドウが閉じられるようになる
                                         glib::Propagation::Proceed
                                     });
 
@@ -127,33 +124,25 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                 }
                                 InstanceMessage::CloseWindow { pipe_name } => {
                                     println!("Received CloseWindow for pipe: {}", pipe_name);
-                                    if let Ok(app) = app_clone.lock() {
-                                        app.quit();
-                                    }
+                                    app_clone_for_idle.quit();
                                 }
                                 InstanceMessage::MaximizeWindow { pipe_name } => {
                                     println!("Received MaximizeWindow for pipe: {}", pipe_name);
-                                    if let Ok(app) = app_clone.lock() {
-                                        if let Some(window) = app.active_window() {
-                                            window.maximize();
-                                        }
+                                    if let Some(window) = app_clone_for_idle.active_window() {
+                                        window.maximize();
                                     }
                                 }
                                 InstanceMessage::MinimizeWindow { pipe_name } => {
                                     println!("Received MinimizeWindow for pipe: {}", pipe_name);
-                                    if let Ok(app) = app_clone.lock() {
-                                        if let Some(window) = app.active_window() {
-                                            window.minimize();
-                                        }
+                                    if let Some(window) = app_clone_for_idle.active_window() {
+                                        window.minimize();
                                     }
                                 }
                                 InstanceMessage::RestoreWindow { pipe_name } => {
                                     println!("Received RestoreWindow for pipe: {}", pipe_name);
-                                    if let Ok(app) = app_clone.lock() {
-                                        if let Some(window) = app.active_window() {
-                                            window.unmaximize();
-                                            window.present();
-                                        }
+                                    if let Some(window) = app_clone_for_idle.active_window() {
+                                        window.unmaximize();
+                                        window.present();
                                     }
                                 }
                             }
@@ -179,18 +168,16 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             eprintln!("Failed to send OpenWindow message on activate: {}", e);
         }
 
-        app.lock().unwrap().connect_window_added(move |_, window| {
+        app_clone.connect_window_added(move |_, window| {
             println!("Window added to application");
             window.present();
         });
 
-        // この部分が、ウィンドウがすべて閉じられたときにアプリケーションを終了させます
-        app.lock().unwrap().connect_window_removed(move |app, _| {
+        app_clone.connect_window_removed(move |app, _| {
             println!("Window removed from application");
             app.quit();
         });
 
-        // pipe_nameのクローンをこのスレッド専用に作成
         let pipe_name_clone_bg = pipe_name_clone_gui_handler.clone();
         thread::spawn(move || {
             println!("Background thread started for pipe: {}", pipe_name_clone_bg);

@@ -3,20 +3,12 @@ use linux_lx_dos::command;
 use linux_lx_dos::utils::args::{Args, Commands, InnerArgs, InnerSubCommands};
 
 fn main() -> Result<(), linux_lx_dos::LxDosError> {
-    if is_frontend() {
-        frontend()
-    } else {
-        backend()
-    }
+    if is_frontend() { frontend() } else { backend() }
 }
 
 fn is_frontend() -> bool {
     if let Ok(lxdos_backend_var) = std::env::var("LXDOS_BACKEND") {
-        if let Ok(_pid) = lxdos_backend_var.parse::<usize>() {
-            false
-        } else {
-            true
-        }
+        lxdos_backend_var.parse::<usize>().is_err()
     } else {
         true
     }
@@ -43,7 +35,6 @@ fn frontend() -> Result<(), linux_lx_dos::LxDosError> {
         Commands::Welcome => command::welcome(),
     }
 }
-
 fn backend() -> Result<(), linux_lx_dos::LxDosError> {
     let args = InnerArgs::parse();
     match args.command {
