@@ -1,9 +1,9 @@
 use crate::LxDosError;
 use crate::modules::app::App;
 use crate::modules::app::instance::InstanceMessage;
+use crate::modules::app::instance::WindowType;
 use system_tray::Event as TrayEvent;
 use system_tray::Menu as TrayMenu;
-
 pub fn start() -> Result<(), LxDosError> {
     let mut app = App::default();
     app.windows.start_server()?;
@@ -17,13 +17,13 @@ pub fn start() -> Result<(), LxDosError> {
         match tray.poll_event()? {
             TrayEvent::MenuItemClicked(id) => match id.as_str() {
                 "open" => {
-                    app.windows.open_window()?;
+                    app.windows.open_window(WindowType::Main)?;
                 }
                 "quit" => break,
                 _ => {}
             },
             TrayEvent::TrayClicked => {
-                app.windows.open_window()?;
+                app.windows.open_window(WindowType::Main)?;
             }
             _ => {}
         }
@@ -33,13 +33,20 @@ pub fn start() -> Result<(), LxDosError> {
             Ok(messages) => {
                 for message in messages {
                     match message {
-                        InstanceMessage::OpenWindow { pipe_name } => {
+                        InstanceMessage::OpenWindow {
+                            pipe_name,
+                            window_type,
+                        } => {
                             println!("Received OpenWindow for pipe: {}", pipe_name);
+                            println!("WindowType: {}", window_type);
                         }
-                        InstanceMessage::CloseWindow { pipe_name } => {
+                        InstanceMessage::CloseWindow {
+                            pipe_name,
+                        } => {
                             println!("Received CloseWindow for pipe: {}", pipe_name);
                             // ここでウィンドウを閉じる処理を実装可能
                         }
+                        _ => {}
                     }
                 }
             }

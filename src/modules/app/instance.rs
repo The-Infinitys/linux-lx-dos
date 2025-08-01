@@ -1,20 +1,45 @@
 use crate::LxDosError;
 use instance_pipe::{Client, Event, Server};
+use std::collections::HashMap;
 use std::env;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
+#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash)]
+pub enum WindowType {
+    Main,
+    Settings,
+}
+impl std::fmt::Display for WindowType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
 pub enum InstanceMessage {
-    OpenWindow { pipe_name: String },
-    CloseWindow { pipe_name: String },
+    OpenWindow {
+        pipe_name: String,
+        window_type: WindowType,
+    },
+    CloseWindow {
+        pipe_name: String,
+    },
+    MaximizeWindow {
+        pipe_name: String,
+    },
+    MinimizeWindow {
+        pipe_name: String,
+    },
+    RestoreWindow {
+        pipe_name: String,
+    },
 }
 
 #[derive(Clone)]
 pub struct WindowServer {
     server: Arc<Mutex<Server>>,
     child: Arc<Mutex<Option<Child>>>,
-    clients: Arc<Mutex<Vec<Client>>>, // Track connected clients
+    clients: Arc<Mutex<Vec<Client>>>,
 }
 
 impl WindowServer {
@@ -27,20 +52,21 @@ impl WindowServer {
     }
 
     pub fn poll_event(&self) -> Result<Vec<InstanceMessage>, LxDosError> {
-        let mut server = self.server.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
+        let mut server = self
+            .server
+            .lock()
+            .map_err(|e| LxDosError::Message(e.to_string()))?;
         let mut messages = Vec::new();
 
         // Check for new connections
         match server.poll_event() {
             Ok(Some(Event::ConnectionAccepted(client))) => {
                 println!("New client connected to server");
-                // Store the client
-                let mut clients = self.clients.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
+                let mut clients = self
+                    .clients
+                    .lock()
+                    .map_err(|e| LxDosError::Message(e.to_string()))?;
                 clients.push(client.clone());
-                // Send an initial OpenWindow message to the new client
-                client.send(&InstanceMessage::OpenWindow {
-                    pipe_name: "".to_string(),
-                })?;
             }
             Ok(Some(Event::MessageReceived(_))) => {
                 println!("Unexpected MessageReceived event in server");
@@ -53,7 +79,10 @@ impl WindowServer {
         }
 
         // Poll messages from existing clients
-        let mut clients = self.clients.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
+        let mut clients = self
+            .clients
+            .lock()
+            .map_err(|e| LxDosError::Message(e.to_string()))?;
         let mut i = 0;
         while i < clients.len() {
             match clients[i].poll_event::<InstanceMessage>() {
@@ -83,7 +112,6 @@ impl WindowServer {
     }
 
     pub fn accept_and_receive(&self) -> Result<Vec<InstanceMessage>, LxDosError> {
-        // Deprecated in favor of poll_event
         self.poll_event()
     }
 }
@@ -116,13 +144,19 @@ impl WindowClient {
     }
 
     pub fn send(&self, message: &InstanceMessage) -> Result<(), LxDosError> {
-        let client = self.client.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
+        let client = self
+            .client
+            .lock()
+            .map_err(|e| LxDosError::Message(e.to_string()))?;
         client.send(message)?;
         Ok(())
     }
 
     pub fn poll_event(&self) -> Result<Vec<InstanceMessage>, LxDosError> {
-        let mut client = self.client.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
+        let mut client = self
+            .client
+            .lock()
+            .map_err(|e| LxDosError::Message(e.to_string()))?;
         let mut messages = Vec::new();
         match client.poll_event::<InstanceMessage>() {
             Ok(Some(Event::MessageReceived(message))) => {
@@ -147,6 +181,7 @@ pub struct WindowManager {
     pipe_name: String,
     servers: Vec<WindowServer>,
     clients: Vec<WindowClient>,
+    open_windows: HashMap<WindowType, String>, // Tracks window type to pipe_name
 }
 
 impl WindowManager {
@@ -156,12 +191,13 @@ impl WindowManager {
             pipe_name,
             servers: Vec::new(),
             clients: Vec::new(),
+            open_windows: HashMap::new(),
         }
     }
 
     pub fn start_server(&mut self) -> Result<(), LxDosError> {
         let server = Server::start(&self.pipe_name)?;
-        let child = Command::new("true").spawn()?; // ダミー子プロセス
+        let child = Command::new("true").spawn()?;
         self.servers.push(WindowServer::new(server, child));
         Ok(())
     }
@@ -169,12 +205,24 @@ impl WindowManager {
     pub fn poll_event(&mut self) -> Result<Vec<InstanceMessage>, LxDosError> {
         let mut messages = Vec::new();
         for server in &mut self.servers {
-            messages.extend(server.poll_event()?);
+            for message in server.poll_event()? {
+                // Update open_windows on CloseWindow
+                if let InstanceMessage::CloseWindow { ref pipe_name } = message {
+                    self.open_windows.retain(|_, v| v != pipe_name);
+                }
+                messages.push(message);
+            }
         }
         Ok(messages)
     }
 
-    pub fn open_window(&mut self) -> Result<(), LxDosError> {
+    pub fn open_window(&mut self, window_type: WindowType) -> Result<(), LxDosError> {
+        // Check if a window of this type is already open
+        if self.open_windows.contains_key(&window_type) {
+            println!("Window of type {:?} is already open", window_type);
+            return Ok(());
+        }
+
         let current_exe = env::current_exe()?;
         let pid = std::process::id().to_string();
         let child = Command::new(current_exe)
@@ -190,15 +238,36 @@ impl WindowManager {
         let server = Server::start(&child_pipe_name)?;
         self.servers.push(WindowServer::new(server, child));
 
-        // Give the child process time to start its client
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         let client = Client::start(&self.pipe_name)?;
         client.send(&InstanceMessage::OpenWindow {
             pipe_name: child_pipe_name.clone(),
+            window_type: window_type.clone(),
         })?;
         self.clients.push(WindowClient::new(client));
 
+        // Track the open window
+        self.open_windows.insert(window_type, child_pipe_name);
+
         Ok(())
+    }
+
+    pub fn send_window_command(
+        &mut self,
+        window_type: WindowType,
+        command: InstanceMessage,
+    ) -> Result<(), LxDosError> {
+        if let Some(_pipe_name) = self.open_windows.get(&window_type) {
+            for client in &self.clients {
+                client.send(&command)?;
+            }
+            Ok(())
+        } else {
+            Err(LxDosError::Message(format!(
+                "No window of type {:?}",
+                window_type
+            )))
+        }
     }
 }
