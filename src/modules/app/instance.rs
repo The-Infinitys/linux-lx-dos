@@ -14,6 +14,7 @@ pub enum InstanceMessage {
 pub struct WindowServer {
     server: Arc<Mutex<Server>>,
     child: Arc<Mutex<Option<Child>>>,
+    clients: Arc<Mutex<Vec<Client>>>, // Track connected clients
 }
 
 impl WindowServer {
@@ -21,46 +22,69 @@ impl WindowServer {
         Self {
             server: Arc::new(Mutex::new(server)),
             child: Arc::new(Mutex::new(Some(child))),
+            clients: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     pub fn poll_event(&self) -> Result<Vec<InstanceMessage>, LxDosError> {
         let mut server = self.server.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
-        let messages = Vec::new();
+        let mut messages = Vec::new();
+
+        // Check for new connections
         match server.poll_event() {
             Ok(Some(Event::ConnectionAccepted(client))) => {
                 println!("New client connected to server");
+                // Store the client
+                let mut clients = self.clients.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
+                clients.push(client.clone());
                 // Send an initial OpenWindow message to the new client
                 client.send(&InstanceMessage::OpenWindow {
                     pipe_name: "".to_string(),
                 })?;
-                Ok(messages)
             }
             Ok(Some(Event::MessageReceived(_))) => {
-                // Server::poll_event returns Event<Client>, so MessageReceived is not possible
                 println!("Unexpected MessageReceived event in server");
-                Ok(messages)
             }
             Ok(Some(Event::MessageSent)) => {
                 println!("Server sent a message");
-                Ok(messages)
             }
-            Ok(None) => Ok(messages),
-            Err(e) => Err(LxDosError::Io(e)),
+            Ok(None) => {}
+            Err(e) => return Err(LxDosError::Io(e)),
         }
+
+        // Poll messages from existing clients
+        let mut clients = self.clients.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
+        let mut i = 0;
+        while i < clients.len() {
+            match clients[i].poll_event::<InstanceMessage>() {
+                Ok(Some(Event::MessageReceived(message))) => {
+                    messages.push(message);
+                    i += 1;
+                }
+                Ok(Some(Event::MessageSent)) => {
+                    println!("Client sent a message");
+                    i += 1;
+                }
+                Ok(Some(Event::ConnectionAccepted(_))) => {
+                    println!("Unexpected connection event in client");
+                    i += 1;
+                }
+                Ok(None) => {
+                    i += 1;
+                }
+                Err(e) => {
+                    println!("Removing disconnected client: {}", e);
+                    clients.remove(i);
+                }
+            }
+        }
+
+        Ok(messages)
     }
 
     pub fn accept_and_receive(&self) -> Result<Vec<InstanceMessage>, LxDosError> {
-        let mut server = self.server.lock().map_err(|e| LxDosError::Message(e.to_string()))?;
-        let mut messages = Vec::new();
-        let client = server.accept()?;
-        match client.recv::<InstanceMessage>() {
-            Ok(message) => {
-                messages.push(message);
-                Ok(messages)
-            }
-            Err(e) => Err(LxDosError::Io(e)),
-        }
+        // Deprecated in favor of poll_event
+        self.poll_event()
     }
 }
 
@@ -145,7 +169,7 @@ impl WindowManager {
     pub fn poll_event(&mut self) -> Result<Vec<InstanceMessage>, LxDosError> {
         let mut messages = Vec::new();
         for server in &mut self.servers {
-            messages.extend(server.accept_and_receive()?);
+            messages.extend(server.poll_event()?);
         }
         Ok(messages)
     }
@@ -165,6 +189,9 @@ impl WindowManager {
         let child_pipe_name = format!("{}_{}", self.pipe_name, child.id());
         let server = Server::start(&child_pipe_name)?;
         self.servers.push(WindowServer::new(server, child));
+
+        // Give the child process time to start its client
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         let client = Client::start(&self.pipe_name)?;
         client.send(&InstanceMessage::OpenWindow {
