@@ -44,7 +44,6 @@ pub fn start() -> Result<(), LxDosError> {
                             pipe_name,
                         } => {
                             println!("Received CloseWindow for pipe: {}", pipe_name);
-                            // ここでウィンドウを閉じる処理を実装可能
                         }
                         _ => {}
                     }

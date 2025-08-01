@@ -85,23 +85,6 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                         .margin_end(12)
                                         .build();
 
-                                    let window_client_clone_button =
-                                        Arc::clone(&window_client_clone_idle);
-                                    let pipe_name_clone_button = pipe_name.clone();
-                                    button.connect_clicked(move |_| {
-                                        println!(
-                                            "Button clicked, sending CloseWindow: {}",
-                                            pipe_name_clone_button
-                                        );
-                                        if let Err(e) = window_client_clone_button.send(
-                                            &InstanceMessage::CloseWindow {
-                                                pipe_name: pipe_name_clone_button.clone(),
-                                            },
-                                        ) {
-                                            eprintln!("Failed to send CloseWindow: {}", e);
-                                        }
-                                    });
-
                                     let app_for_window = app_clone_for_idle.lock().unwrap();
                                     let window = Gui::window_builder(&app_for_window, window_title)
                                         .child(&button)
@@ -109,12 +92,21 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                         .height_request(360)
                                         .build();
 
+                                    // ウィンドウへの弱い参照を作成し、循環参照を避ける
+                                    let window_weak = window.downgrade();
+                                    button.connect_clicked(move |_| {
+                                        if let Some(window) = window_weak.upgrade() {
+                                            println!("Button clicked, closing window");
+                                            window.close();
+                                        }
+                                    });
+
                                     let window_client_clone_close_request =
                                         Arc::clone(&window_client_clone_idle);
                                     let pipe_name_clone_close_request = pipe_name.clone();
                                     window.connect_close_request(move |_| {
                                         println!(
-                                            "Window closed, sending CloseWindow: {}",
+                                            "Window close requested, sending CloseWindow: {}",
                                             pipe_name_clone_close_request
                                         );
                                         if let Err(e) = window_client_clone_close_request.send(
@@ -127,7 +119,8 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                                 e
                                             );
                                         }
-                                        glib::Propagation::Stop
+                                        // ここを`Proceed`にすることでウィンドウが閉じられるようになる
+                                        glib::Propagation::Proceed
                                     });
 
                                     window.present();
@@ -191,11 +184,10 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             window.present();
         });
 
+        // この部分が、ウィンドウがすべて閉じられたときにアプリケーションを終了させます
         app.lock().unwrap().connect_window_removed(move |app, _| {
             println!("Window removed from application");
-            if app.windows().is_empty() {
-                app.quit();
-            }
+            app.quit();
         });
 
         // pipe_nameのクローンをこのスレッド専用に作成
