@@ -85,13 +85,19 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                         .margin_end(12)
                                         .build();
 
-                                    let window_client_clone_button = Arc::clone(&window_client_clone_idle);
+                                    let window_client_clone_button =
+                                        Arc::clone(&window_client_clone_idle);
                                     let pipe_name_clone_button = pipe_name.clone();
                                     button.connect_clicked(move |_| {
-                                        println!("Button clicked, sending CloseWindow: {}", pipe_name_clone_button);
-                                        if let Err(e) = window_client_clone_button.send(&InstanceMessage::CloseWindow {
-                                            pipe_name: pipe_name_clone_button.clone(),
-                                        }) {
+                                        println!(
+                                            "Button clicked, sending CloseWindow: {}",
+                                            pipe_name_clone_button
+                                        );
+                                        if let Err(e) = window_client_clone_button.send(
+                                            &InstanceMessage::CloseWindow {
+                                                pipe_name: pipe_name_clone_button.clone(),
+                                            },
+                                        ) {
                                             eprintln!("Failed to send CloseWindow: {}", e);
                                         }
                                     });
@@ -103,14 +109,23 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                         .height_request(360)
                                         .build();
 
-                                    let window_client_clone_close_request = Arc::clone(&window_client_clone_idle);
+                                    let window_client_clone_close_request =
+                                        Arc::clone(&window_client_clone_idle);
                                     let pipe_name_clone_close_request = pipe_name.clone();
                                     window.connect_close_request(move |_| {
-                                        println!("Window closed, sending CloseWindow: {}", pipe_name_clone_close_request);
-                                        if let Err(e) = window_client_clone_close_request.send(&InstanceMessage::CloseWindow {
-                                            pipe_name: pipe_name_clone_close_request.clone(),
-                                        }) {
-                                            eprintln!("Failed to send CloseWindow on window close: {}", e);
+                                        println!(
+                                            "Window closed, sending CloseWindow: {}",
+                                            pipe_name_clone_close_request
+                                        );
+                                        if let Err(e) = window_client_clone_close_request.send(
+                                            &InstanceMessage::CloseWindow {
+                                                pipe_name: pipe_name_clone_close_request.clone(),
+                                            },
+                                        ) {
+                                            eprintln!(
+                                                "Failed to send CloseWindow on window close: {}",
+                                                e
+                                            );
                                         }
                                         glib::Propagation::Stop
                                     });
@@ -163,15 +178,13 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
 
         let tx_for_activate = tx.clone();
         let pipe_name_clone_for_activate = pipe_name_clone_gui_handler.clone();
-        app.lock().unwrap().connect_activate(move |_| {
-            println!("Application activated, sending OpenWindow message.");
-            if let Err(e) = tx_for_activate.send_blocking(InstanceMessage::OpenWindow {
-                pipe_name: pipe_name_clone_for_activate.clone(),
-                window_type: WindowType::Main,
-            }) {
-                eprintln!("Failed to send OpenWindow message on activate: {}", e);
-            }
-        });
+        println!("Application activated, sending OpenWindow message.");
+        if let Err(e) = tx_for_activate.send_blocking(InstanceMessage::OpenWindow {
+            pipe_name: pipe_name_clone_for_activate.clone(),
+            window_type: WindowType::Main,
+        }) {
+            eprintln!("Failed to send OpenWindow message on activate: {}", e);
+        }
 
         app.lock().unwrap().connect_window_added(move |_, window| {
             println!("Window added to application");
@@ -197,7 +210,6 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             Ok::<(), LxDosError>(())
         });
     });
-
     gui.run();
 
     if let Some(handle) = client_handle.lock().unwrap().take() {
