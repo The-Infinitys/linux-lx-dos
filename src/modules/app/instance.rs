@@ -60,6 +60,7 @@ impl WindowServer {
             .map_err(|e| LxDosError::Message(e.to_string()))?;
         let mut messages = Vec::new();
 
+        // Check for new connections
         match server.poll_event() {
             Ok(Some(Event::ConnectionAccepted(client))) => {
                 println!("New client connected to server");
@@ -79,6 +80,7 @@ impl WindowServer {
             Err(e) => return Err(LxDosError::Io(e)),
         }
 
+        // Poll messages from existing clients
         let mut clients = self
             .clients
             .lock()
@@ -175,9 +177,10 @@ impl WindowClient {
 
 pub struct WindowManager {
     pipe_name: String,
+    // Use HashMap to easily identify servers and clients by pipe name
     servers: HashMap<String, WindowServer>,
     clients: HashMap<String, WindowClient>,
-    open_windows: HashMap<WindowType, String>,
+    open_windows: HashMap<WindowType, String>, // Tracks window type to pipe_name
 }
 
 impl Default for WindowManager {
@@ -209,7 +212,7 @@ impl WindowManager {
         let mut messages = Vec::new();
         let mut pipes_to_close = Vec::new();
 
-        for (_, server) in self.servers.iter() {
+        for (__pipe_name, server) in &self.servers {
             for message in server.poll_event()? {
                 if let InstanceMessage::CloseWindow {
                     pipe_name: ref closed_pipe_name,
@@ -221,6 +224,7 @@ impl WindowManager {
             }
         }
 
+        // After polling all servers, clean up based on the received CloseWindow messages.
         for closed_pipe_name in pipes_to_close {
             println!(
                 "Cleaning up resources for closed window: {}",
@@ -250,36 +254,21 @@ impl WindowManager {
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn()?;
-        let client = Client::start(&self.pipe_name)?;
-        let child_pipe_name = format!("{}_{}", self.pipe_name, child.id());
 
-        // メインサーバーにOpenWindowメッセージを送信
+        let child_pipe_name = format!("{}_{}", self.pipe_name, child.id());
+        let server = Server::start(&child_pipe_name)?;
+        self.servers
+            .insert(child_pipe_name.clone(), WindowServer::new(server, child));
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        let client = Client::start(&self.pipe_name)?;
         client.send(&InstanceMessage::OpenWindow {
             pipe_name: child_pipe_name.clone(),
             window_type: window_type.clone(),
         })?;
-
-        // ここで子プロセスと通信するためのサーバーとクライアントを管理する
-        // メインアプリケーションがクライアントになり、子プロセスがサーバーになる
-        //
-        // 既存のコードは、子プロセスにクライアントとしてメインパイプに接続させ、
-        // メインプロセスが子プロセスのためのサーバーを立ち上げる、という設計です。
-        //
-        // `run_backend` で `Client::start(pipe_name)?` が呼ばれており、
-        // `WindowManager::open_window` で `Server::start(&child_pipe_name)?`
-        // が呼ばれているため、設計が逆転しています。
-        //
-        // 既存の設計に合わせて修正します。
-
-        let child_server = Server::start(&child_pipe_name)?;
-        self.servers.insert(
-            child_pipe_name.clone(),
-            WindowServer::new(child_server, child),
-        );
-
-        let client_to_child = Client::start(&child_pipe_name)?;
         self.clients
-            .insert(child_pipe_name.clone(), WindowClient::new(client_to_child));
+            .insert(child_pipe_name.clone(), WindowClient::new(client));
 
         self.open_windows.insert(window_type, child_pipe_name);
 

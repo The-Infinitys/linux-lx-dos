@@ -159,6 +159,16 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             })
             .expect("Failed to attach idle source to MainContext");
 
+        let tx_for_activate = tx.clone();
+        let pipe_name_clone_for_activate = pipe_name_clone_gui_handler.clone();
+        println!("Application activated, sending OpenWindow message.");
+        if let Err(e) = tx_for_activate.send_blocking(InstanceMessage::OpenWindow {
+            pipe_name: pipe_name_clone_for_activate.clone(),
+            window_type: WindowType::Main,
+        }) {
+            eprintln!("Failed to send OpenWindow message on activate: {}", e);
+        }
+
         app_clone.connect_window_added(move |_, window| {
             println!("Window added to application");
             window.present();
@@ -186,5 +196,6 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             .join()
             .map_err(|e| LxDosError::Message(format!("Client thread panicked: {:?}", e)))??;
     }
+    println!("Application closed");
     Ok(())
 }
