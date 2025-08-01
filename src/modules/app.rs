@@ -1,11 +1,14 @@
 use crate::LxDosError;
 use crate::command;
+pub mod instance;
 pub mod messages;
 use crate::utils::args::Args;
 use crate::utils::args::Commands;
 use system_tray::SystemTray;
 pub mod gui;
-pub struct App {}
+pub struct App {
+    pub windows: instance::WindowManager,
+}
 
 impl App {
     pub fn exec(&self, args: Args) -> Result<(), LxDosError> {
@@ -31,7 +34,9 @@ impl App {
 
 impl Default for App {
     fn default() -> Self {
-        Self {}
+        Self {
+            windows: instance::WindowManager::new(),
+        }
     }
 }
 
