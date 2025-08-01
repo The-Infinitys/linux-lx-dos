@@ -1,5 +1,5 @@
 use super::App;
-use gui::builders::ApplicationWindowBuilder;
+use gui::{builders::ApplicationWindowBuilder, gio::prelude::ApplicationExtManual};
 pub struct Gui {
     gui: gui::Application,
 }
@@ -14,7 +14,7 @@ impl Gui {
         Self { gui }
     }
 
-    pub fn window_builder(&self, title: &str) -> ApplicationWindowBuilder {
+    pub fn window_builder(gui: &gui::Application, title: &str) -> ApplicationWindowBuilder {
         use gui::ApplicationWindow;
         use gui::CssProvider;
         use gui::Settings;
@@ -32,8 +32,12 @@ impl Gui {
             gui::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
 
-        ApplicationWindow::builder()
-            .application(&self.gui)
-            .title(title)
+        ApplicationWindow::builder().application(gui).title(title)
+    }
+    pub fn handler<F: Fn(&gui::Application) + 'static>(&self, f: F) {
+        self.gui.connect_open(move |app, _files, _hint| f(app));
+    }
+    pub fn run(&self) {
+        self.gui.run();
     }
 }

@@ -1,5 +1,6 @@
 use clap::Parser;
 use clap::Subcommand;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
@@ -25,6 +26,7 @@ pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
 }
+
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     /// Start Lx-DOS
@@ -39,9 +41,11 @@ pub enum Commands {
 #[command(author, version, about, long_about = None)]
 pub struct InnerArgs {
     pub parent_pid: usize,
+    pub pipe_name: String,
     #[command(subcommand)]
     pub command: InnerSubCommands,
 }
+
 #[derive(Debug, Subcommand)]
 pub enum InnerSubCommands {
     /// Show Window

@@ -1,9 +1,15 @@
 use clap::Parser;
 use linux_lx_dos::command;
-use linux_lx_dos::utils::args::{Args, Commands, InnerArgs};
+use linux_lx_dos::utils::args::{Args, Commands, InnerArgs, InnerSubCommands};
+
 fn main() -> Result<(), linux_lx_dos::LxDosError> {
-    if is_frontend() { frontend() } else { backend() }
+    if is_frontend() {
+        frontend()
+    } else {
+        backend()
+    }
 }
+
 fn is_frontend() -> bool {
     if let Ok(lxdos_backend_var) = std::env::var("LXDOS_BACKEND") {
         if let Ok(_pid) = lxdos_backend_var.parse::<usize>() {
@@ -15,6 +21,7 @@ fn is_frontend() -> bool {
         true
     }
 }
+
 fn frontend() -> Result<(), linux_lx_dos::LxDosError> {
     let args = Args::parse();
 
@@ -36,8 +43,10 @@ fn frontend() -> Result<(), linux_lx_dos::LxDosError> {
         Commands::Welcome => command::welcome(),
     }
 }
+
 fn backend() -> Result<(), linux_lx_dos::LxDosError> {
     let args = InnerArgs::parse();
-    println!("{:#?}", args);
-    Ok(())
+    match args.command {
+        InnerSubCommands::Window => command::run_backend(&args.pipe_name),
+    }
 }

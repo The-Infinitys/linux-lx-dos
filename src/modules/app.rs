@@ -21,6 +21,7 @@ impl App {
 
     pub fn system_tray() -> SystemTray {
         SystemTray::new(&Self::organization(), &Self::app_id())
+            .icon(include_bytes!("../../public/icon.svg"), "svg")
     }
 
     pub fn organization() -> String {
