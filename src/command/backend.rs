@@ -102,7 +102,7 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                     let window_client_clone_close_request =
                                         Arc::clone(&window_client_clone_idle);
                                     let pipe_name_clone_close_request = pipe_name.clone();
-                                    window.connect_close_request(move |_| {
+                                    window.connect_close_request(move |window| {
                                         println!(
                                             "Window close requested, sending CloseWindow: {}",
                                             pipe_name_clone_close_request
@@ -117,6 +117,7 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                                 e
                                             );
                                         }
+                                        window.close();
                                         glib::Propagation::Proceed
                                     });
 
@@ -177,7 +178,6 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             println!("Window removed from application");
             app.quit();
         });
-
         let pipe_name_clone_bg = pipe_name_clone_gui_handler.clone();
         thread::spawn(move || {
             println!("Background thread started for pipe: {}", pipe_name_clone_bg);
@@ -196,6 +196,5 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             .join()
             .map_err(|e| LxDosError::Message(format!("Client thread panicked: {:?}", e)))??;
     }
-
     Ok(())
 }

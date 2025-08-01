@@ -10,11 +10,13 @@ pub enum WindowType {
     Main,
     Settings,
 }
+
 impl std::fmt::Display for WindowType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:#?}", self)
     }
 }
+
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone)]
 pub enum InstanceMessage {
     OpenWindow {
@@ -58,7 +60,6 @@ impl WindowServer {
             .map_err(|e| LxDosError::Message(e.to_string()))?;
         let mut messages = Vec::new();
 
-        // Check for new connections
         match server.poll_event() {
             Ok(Some(Event::ConnectionAccepted(client))) => {
                 println!("New client connected to server");
@@ -78,7 +79,6 @@ impl WindowServer {
             Err(e) => return Err(LxDosError::Io(e)),
         }
 
-        // Poll messages from existing clients
         let mut clients = self
             .clients
             .lock()
@@ -109,10 +109,6 @@ impl WindowServer {
         }
 
         Ok(messages)
-    }
-
-    pub fn accept_and_receive(&self) -> Result<Vec<InstanceMessage>, LxDosError> {
-        self.poll_event()
     }
 }
 
@@ -179,9 +175,9 @@ impl WindowClient {
 
 pub struct WindowManager {
     pipe_name: String,
-    servers: Vec<WindowServer>,
-    clients: Vec<WindowClient>,
-    open_windows: HashMap<WindowType, String>, // Tracks window type to pipe_name
+    servers: HashMap<String, WindowServer>,
+    clients: HashMap<String, WindowClient>,
+    open_windows: HashMap<WindowType, String>,
 }
 
 impl Default for WindowManager {
@@ -195,8 +191,8 @@ impl WindowManager {
         let pipe_name = format!("lxdos_pipe_{}", std::process::id());
         Self {
             pipe_name,
-            servers: Vec::new(),
-            clients: Vec::new(),
+            servers: HashMap::new(),
+            clients: HashMap::new(),
             open_windows: HashMap::new(),
         }
     }
@@ -204,26 +200,41 @@ impl WindowManager {
     pub fn start_server(&mut self) -> Result<(), LxDosError> {
         let server = Server::start(&self.pipe_name)?;
         let child = Command::new("true").spawn()?;
-        self.servers.push(WindowServer::new(server, child));
+        self.servers
+            .insert(self.pipe_name.clone(), WindowServer::new(server, child));
         Ok(())
     }
 
     pub fn poll_event(&mut self) -> Result<Vec<InstanceMessage>, LxDosError> {
         let mut messages = Vec::new();
-        for server in &mut self.servers {
+        let mut pipes_to_close = Vec::new();
+
+        for (_, server) in self.servers.iter() {
             for message in server.poll_event()? {
-                // Update open_windows on CloseWindow
-                if let InstanceMessage::CloseWindow { ref pipe_name } = message {
-                    self.open_windows.retain(|_, v| v != pipe_name);
+                if let InstanceMessage::CloseWindow {
+                    pipe_name: ref closed_pipe_name,
+                } = message
+                {
+                    pipes_to_close.push(closed_pipe_name.clone());
                 }
                 messages.push(message);
             }
         }
+
+        for closed_pipe_name in pipes_to_close {
+            println!(
+                "Cleaning up resources for closed window: {}",
+                closed_pipe_name
+            );
+            self.servers.remove(&closed_pipe_name);
+            self.clients.remove(&closed_pipe_name);
+            self.open_windows.retain(|_, v| v != &closed_pipe_name);
+        }
+
         Ok(messages)
     }
 
     pub fn open_window(&mut self, window_type: WindowType) -> Result<(), LxDosError> {
-        // Check if a window of this type is already open
         if self.open_windows.contains_key(&window_type) {
             println!("Window of type {:?} is already open", window_type);
             return Ok(());
@@ -239,21 +250,37 @@ impl WindowManager {
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn()?;
-
-        let child_pipe_name = format!("{}_{}", self.pipe_name, child.id());
-        let server = Server::start(&child_pipe_name)?;
-        self.servers.push(WindowServer::new(server, child));
-
-        std::thread::sleep(std::time::Duration::from_millis(100));
-
         let client = Client::start(&self.pipe_name)?;
+        let child_pipe_name = format!("{}_{}", self.pipe_name, child.id());
+
+        // メインサーバーにOpenWindowメッセージを送信
         client.send(&InstanceMessage::OpenWindow {
             pipe_name: child_pipe_name.clone(),
             window_type: window_type.clone(),
         })?;
-        self.clients.push(WindowClient::new(client));
 
-        // Track the open window
+        // ここで子プロセスと通信するためのサーバーとクライアントを管理する
+        // メインアプリケーションがクライアントになり、子プロセスがサーバーになる
+        //
+        // 既存のコードは、子プロセスにクライアントとしてメインパイプに接続させ、
+        // メインプロセスが子プロセスのためのサーバーを立ち上げる、という設計です。
+        //
+        // `run_backend` で `Client::start(pipe_name)?` が呼ばれており、
+        // `WindowManager::open_window` で `Server::start(&child_pipe_name)?`
+        // が呼ばれているため、設計が逆転しています。
+        //
+        // 既存の設計に合わせて修正します。
+
+        let child_server = Server::start(&child_pipe_name)?;
+        self.servers.insert(
+            child_pipe_name.clone(),
+            WindowServer::new(child_server, child),
+        );
+
+        let client_to_child = Client::start(&child_pipe_name)?;
+        self.clients
+            .insert(child_pipe_name.clone(), WindowClient::new(client_to_child));
+
         self.open_windows.insert(window_type, child_pipe_name);
 
         Ok(())
@@ -264,16 +291,15 @@ impl WindowManager {
         window_type: WindowType,
         command: InstanceMessage,
     ) -> Result<(), LxDosError> {
-        if let Some(_pipe_name) = self.open_windows.get(&window_type) {
-            for client in &self.clients {
+        if let Some(pipe_name) = self.open_windows.get(&window_type) {
+            if let Some(client) = self.clients.get(pipe_name) {
                 client.send(&command)?;
+                return Ok(());
             }
-            Ok(())
-        } else {
-            Err(LxDosError::Message(format!(
-                "No window of type {:?}",
-                window_type
-            )))
         }
+        Err(LxDosError::Message(format!(
+            "No client found for window of type {:?}",
+            window_type
+        )))
     }
 }
