@@ -1,5 +1,6 @@
 use crate::LxDosError;
 use crate::modules::app::App;
+use crate::modules::app::instance::InstanceMessage;
 use system_tray::Event as TrayEvent;
 use system_tray::Menu as TrayMenu;
 
@@ -19,7 +20,6 @@ pub fn start() -> Result<(), LxDosError> {
                     app.windows.open_window()?;
                 }
                 "quit" => break,
-
                 _ => {}
             },
             TrayEvent::TrayClicked => {
@@ -27,11 +27,27 @@ pub fn start() -> Result<(), LxDosError> {
             }
             _ => {}
         }
-        // match app.windows.poll_event() {
-        //     _ => {
-        //         println!("Recieve");
-        //     }
-        // }
+
+        // サーバーからのメッセージをポーリング
+        match app.windows.poll_event() {
+            Ok(messages) => {
+                for message in messages {
+                    match message {
+                        InstanceMessage::OpenWindow { pipe_name } => {
+                            println!("Received OpenWindow for pipe: {}", pipe_name);
+                        }
+                        InstanceMessage::CloseWindow { pipe_name } => {
+                            println!("Received CloseWindow for pipe: {}", pipe_name);
+                            // ここでウィンドウを閉じる処理を実装可能
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Poll event error: {}", e);
+            }
+        }
+
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     Ok(())
