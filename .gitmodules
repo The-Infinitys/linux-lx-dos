@@ -1,3 +1,6 @@
 [submodule "lib/system-tray"]
 	path = lib/system-tray
 	url = https://github.com/The-Infinitys/rust.system-tray
+[submodule "lib/instance-pipe"]
+	path = lib/instance-pipe
+	url = https://github.com/The-Infinitys/rust.instance-pipe
