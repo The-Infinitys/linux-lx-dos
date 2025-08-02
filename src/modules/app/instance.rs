@@ -2,6 +2,7 @@ use crate::LxDosError;
 use instance_pipe::{Client, Event, Server};
 use std::collections::HashMap;
 use std::env;
+use std::ops::DerefMut;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
@@ -313,5 +314,18 @@ impl WindowManager {
             "No client found for window of type {:?}",
             window_type
         )))
+    }
+}
+
+impl Drop for WindowManager {
+    fn drop(&mut self) {
+        for window_struct in &self.windows {
+            let (_, window) = window_struct;
+            let mut child_process = window.server.child.lock().unwrap();
+            let child_process = child_process.deref_mut();
+            if let Some(child) = child_process {
+                child.kill().unwrap();
+            }
+        }
     }
 }
