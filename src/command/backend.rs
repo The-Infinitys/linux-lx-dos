@@ -146,7 +146,7 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             .margin_end(12)
             .build();
 
-        let window = Gui::window_builder(&app, window_title)
+        let window = Gui::window_builder(app, window_title)
             .child(&button)
             .width_request(480)
             .height_request(360)
