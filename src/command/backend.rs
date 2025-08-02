@@ -71,57 +71,6 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
                                         "Received OpenWindow for pipe: {}, type: {:?}",
                                         pipe_name, window_type
                                     );
-                                    let window_title = match window_type {
-                                        WindowType::Main => "Lx-DOS Main",
-                                        WindowType::Settings => "Lx-DOS Settings",
-                                    };
-
-                                    let button = gui::Button::builder()
-                                        .label("Press me!")
-                                        .margin_top(12)
-                                        .margin_bottom(12)
-                                        .margin_start(12)
-                                        .margin_end(12)
-                                        .build();
-
-                                    let window =
-                                        Gui::window_builder(&app_clone_for_idle, window_title)
-                                            .child(&button)
-                                            .width_request(480)
-                                            .height_request(360)
-                                            .build();
-
-                                    let window_weak = window.downgrade();
-                                    button.connect_clicked(move |_| {
-                                        if let Some(window) = window_weak.upgrade() {
-                                            println!("Button clicked, closing window");
-                                            window.close();
-                                        }
-                                    });
-
-                                    let window_client_clone_close_request =
-                                        Arc::clone(&window_client_clone_idle);
-                                    let pipe_name_clone_close_request = pipe_name.clone();
-                                    window.connect_close_request(move |window| {
-                                        println!(
-                                            "Window close requested, sending CloseWindow: {}",
-                                            pipe_name_clone_close_request
-                                        );
-                                        if let Err(e) = window_client_clone_close_request.send(
-                                            &InstanceMessage::CloseWindow {
-                                                pipe_name: pipe_name_clone_close_request.clone(),
-                                            },
-                                        ) {
-                                            eprintln!(
-                                                "Failed to send CloseWindow on window close: {}",
-                                                e
-                                            );
-                                        }
-                                        window.close();
-                                        glib::Propagation::Proceed
-                                    });
-
-                                    window.present();
                                 }
                                 InstanceMessage::CloseWindow { pipe_name } => {
                                     println!("Received CloseWindow for pipe: {}", pipe_name);
@@ -188,6 +137,46 @@ pub fn run_backend(pipe_name: &str) -> Result<(), LxDosError> {
             );
             Ok::<(), LxDosError>(())
         });
+        let window_title = "Lx DOS";
+        let button = gui::Button::builder()
+            .label("Press me!")
+            .margin_top(12)
+            .margin_bottom(12)
+            .margin_start(12)
+            .margin_end(12)
+            .build();
+
+        let window = Gui::window_builder(&app, window_title)
+            .child(&button)
+            .width_request(480)
+            .height_request(360)
+            .build();
+
+        let window_weak = window.downgrade();
+        button.connect_clicked(move |_| {
+            if let Some(window) = window_weak.upgrade() {
+                println!("Button clicked, closing window");
+                window.close();
+            }
+        });
+
+        let window_client_clone_close_request = Arc::clone(&window_client_clone_idle);
+        let pipe_name_clone_close_request = pipe_name.clone();
+        window.connect_close_request(move |window| {
+            println!(
+                "Window close requested, sending CloseWindow: {}",
+                pipe_name_clone_close_request
+            );
+            if let Err(e) = window_client_clone_close_request.send(&InstanceMessage::CloseWindow {
+                pipe_name: pipe_name_clone_close_request.clone(),
+            }) {
+                eprintln!("Failed to send CloseWindow on window close: {}", e);
+            }
+            window.close();
+            glib::Propagation::Proceed
+        });
+
+        window.present();
     });
     gui.run();
 

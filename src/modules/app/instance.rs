@@ -318,13 +318,6 @@ impl WindowManager {
             }
         }
 
-        if let Some(main_window) = self.windows.get(&WindowType::Main) {
-            main_window.client.send(&InstanceMessage::OpenWindow {
-                pipe_name: child_pipe_name.clone(),
-                window_type: window_type.clone(),
-            })?;
-        }
-
         let new_window = Window {
             pipe_name: child_pipe_name,
             server: WindowServer::new(server, Some(child)),
