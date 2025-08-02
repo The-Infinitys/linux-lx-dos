@@ -34,7 +34,6 @@ impl App {
     }
 }
 
-
 /// `App`構造体がスコープを外れてドロップされる際に、管理しているすべてのGUIアプリケーションを終了します。
 impl Drop for App {
     fn drop(&mut self) {}

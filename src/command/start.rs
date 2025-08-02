@@ -39,9 +39,7 @@ pub fn start() -> Result<(), LxDosError> {
                             println!("Received OpenWindow for pipe: {}", pipe_name);
                             println!("WindowType: {}", window_type);
                         }
-                        InstanceMessage::CloseWindow {
-                            pipe_name,
-                        } => {
+                        InstanceMessage::CloseWindow { pipe_name } => {
                             println!("Received CloseWindow for pipe: {}", pipe_name);
                         }
                         _ => {}

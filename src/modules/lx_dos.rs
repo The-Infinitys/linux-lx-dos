@@ -1,3 +1,2 @@
 #[derive(Default, Debug)]
-pub struct LxDos {
-}
+pub struct LxDos {}
