@@ -288,35 +288,7 @@ impl WindowManager {
         let server = Server::start(&child_pipe_name)?;
 
         // メインプロセスは子プロセスにメッセージを送るためのクライアントを起動する
-        let new_window_client;
-        let mut attempts = 0;
-        const MAX_ATTEMPTS: u32 = 10;
-        const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(50);
-
-        // クライアントがメインパイプに接続するまでリトライ
-        loop {
-            match Client::start(&self.pipe_name) {
-                Ok(client) => {
-                    new_window_client = client;
-                    break;
-                }
-                Err(_e) if attempts < MAX_ATTEMPTS => {
-                    eprintln!(
-                        "Connection failed, retrying... (Attempt {}/{})",
-                        attempts + 1,
-                        MAX_ATTEMPTS
-                    );
-                    std::thread::sleep(RETRY_DELAY);
-                    attempts += 1;
-                }
-                Err(e) => {
-                    return Err(LxDosError::Message(format!(
-                        "Failed to connect to server after multiple attempts: {}",
-                        e
-                    )));
-                }
-            }
-        }
+        let new_window_client = Client::start(&child_pipe_name)?;
 
         let new_window = Window {
             pipe_name: child_pipe_name,
