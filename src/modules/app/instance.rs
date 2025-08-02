@@ -45,10 +45,10 @@ pub struct WindowServer {
 }
 
 impl WindowServer {
-    pub fn new(server: Server, child: Child) -> Self {
+    pub fn new(server: Server, child: Option<Child>) -> Self {
         Self {
             server: Arc::new(Mutex::new(server)),
-            child: Arc::new(Mutex::new(Some(child))),
+            child: Arc::new(Mutex::new(child)),
             clients: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -60,7 +60,6 @@ impl WindowServer {
             .map_err(|e| LxDosError::Message(e.to_string()))?;
         let mut messages = Vec::new();
 
-        // Check for new connections
         match server.poll_event() {
             Ok(Some(Event::ConnectionAccepted(client))) => {
                 println!("New client connected to server");
@@ -80,7 +79,6 @@ impl WindowServer {
             Err(e) => return Err(LxDosError::Io(e)),
         }
 
-        // Poll messages from existing clients
         let mut clients = self
             .clients
             .lock()
@@ -111,6 +109,28 @@ impl WindowServer {
         }
 
         Ok(messages)
+    }
+
+    // 子プロセスが終了したかをチェックする新しいメソッド
+    pub fn check_child_status(&self) -> Result<bool, LxDosError> {
+        if let Ok(mut child_lock) = self.child.lock() {
+            if let Some(child) = child_lock.as_mut() {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        println!("Child process exited with status: {}", status);
+                        Ok(true)
+                    }
+                    Ok(None) => Ok(false), // まだ実行中
+                    Err(e) => Err(LxDosError::Io(e)),
+                }
+            } else {
+                Ok(false) // Child process handle doesn't exist
+            }
+        } else {
+            Err(LxDosError::Message(
+                "Failed to lock child mutex".to_string(),
+            ))
+        }
     }
 }
 
@@ -175,12 +195,15 @@ impl WindowClient {
     }
 }
 
+pub struct Window {
+    pub pipe_name: String,
+    pub server: WindowServer,
+    pub client: WindowClient,
+}
+
 pub struct WindowManager {
     pipe_name: String,
-    // Use HashMap to easily identify servers and clients by pipe name
-    servers: HashMap<String, WindowServer>,
-    clients: HashMap<String, WindowClient>,
-    open_windows: HashMap<WindowType, String>, // Tracks window type to pipe_name
+    windows: HashMap<WindowType, Window>,
 }
 
 impl Default for WindowManager {
@@ -194,97 +217,132 @@ impl WindowManager {
         let pipe_name = format!("lxdos_pipe_{}", std::process::id());
         Self {
             pipe_name,
-            servers: HashMap::new(),
-            clients: HashMap::new(),
-            open_windows: HashMap::new(),
+            windows: HashMap::new(),
         }
-    }
-
-    pub fn start_server(&mut self) -> Result<(), LxDosError> {
-        let server = Server::start(&self.pipe_name)?;
-        let child = Command::new("true").spawn()?;
-        self.servers
-            .insert(self.pipe_name.clone(), WindowServer::new(server, child));
-        Ok(())
     }
 
     pub fn poll_event(&mut self) -> Result<Vec<InstanceMessage>, LxDosError> {
         let mut messages = Vec::new();
-        let mut pipes_to_close = Vec::new();
+        let mut windows_to_close = Vec::new();
 
-        for (__pipe_name, server) in &self.servers {
-            for message in server.poll_event()? {
-                if let InstanceMessage::CloseWindow {
-                    pipe_name: ref closed_pipe_name,
-                } = message
-                {
-                    pipes_to_close.push(closed_pipe_name.clone());
+        // 終了した子プロセスや切断されたパイプを検知
+        for (window_type, window) in &self.windows {
+            match window.server.poll_event() {
+                Ok(mut new_messages) => {
+                    for message in &new_messages {
+                        if let InstanceMessage::CloseWindow { .. } = message {
+                            windows_to_close.push(window_type.clone());
+                        }
+                    }
+                    messages.append(&mut new_messages);
                 }
-                messages.push(message);
+                Err(e) => {
+                    println!("Server for {:?} disconnected: {}", window_type, e);
+                    windows_to_close.push(window_type.clone());
+                }
+            }
+
+            if window.server.check_child_status()? {
+                println!("Child process for {:?} exited.", window_type);
+                windows_to_close.push(window_type.clone());
             }
         }
 
-        // After polling all servers, clean up based on the received CloseWindow messages.
-        for closed_pipe_name in pipes_to_close {
+        // CloseWindowメッセージに基づいてウィンドウを削除
+        for closed_window_type in windows_to_close {
             println!(
-                "Cleaning up resources for closed window: {}",
-                closed_pipe_name
+                "Cleaning up resources for closed window: {:?}",
+                closed_window_type
             );
-            self.servers.remove(&closed_pipe_name);
-            self.clients.remove(&closed_pipe_name);
-            self.open_windows.retain(|_, v| v != &closed_pipe_name);
+            self.windows.remove(&closed_window_type);
         }
 
         Ok(messages)
     }
-
+    // WindowManager::open_window メソッドの修正
     pub fn open_window(&mut self, window_type: WindowType) -> Result<(), LxDosError> {
-        if self.open_windows.contains_key(&window_type) {
+        if self.windows.contains_key(&window_type) {
             println!("Window of type {:?} is already open", window_type);
             return Ok(());
         }
 
         let current_exe = env::current_exe()?;
         let pid = std::process::id().to_string();
+        let child_pipe_name = format!(
+            "{}_{}",
+            self.pipe_name,
+            window_type.to_string().to_ascii_lowercase()
+        );
+
+        // 子プロセスを起動する際に、子プロセス用のパイプ名を引数として渡す
         let child = Command::new(current_exe)
             .env("LXDOS_BACKEND", &pid)
             .arg(&pid)
-            .arg(&self.pipe_name)
+            .arg(&child_pipe_name) // ここで子プロセス用のパイプ名を渡す
             .arg("window")
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn()?;
 
-        let child_pipe_name = format!("{}_{}", self.pipe_name, child.id());
+        // 親プロセスは子プロセス用のパイプでサーバーを起動し、子からの接続を待つ
         let server = Server::start(&child_pipe_name)?;
-        self.servers
-            .insert(child_pipe_name.clone(), WindowServer::new(server, child));
 
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        // メインプロセスは子プロセスにメッセージを送るためのクライアントを起動する
+        let new_window_client;
+        let mut attempts = 0;
+        const MAX_ATTEMPTS: u32 = 10;
+        const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(50);
 
-        let client = Client::start(&self.pipe_name)?;
-        client.send(&InstanceMessage::OpenWindow {
-            pipe_name: child_pipe_name.clone(),
-            window_type: window_type.clone(),
-        })?;
-        self.clients
-            .insert(child_pipe_name.clone(), WindowClient::new(client));
+        // クライアントがメインパイプに接続するまでリトライ
+        loop {
+            match Client::start(&self.pipe_name) {
+                Ok(client) => {
+                    new_window_client = client;
+                    break;
+                }
+                Err(_e) if attempts < MAX_ATTEMPTS => {
+                    eprintln!(
+                        "Connection failed, retrying... (Attempt {}/{})",
+                        attempts + 1,
+                        MAX_ATTEMPTS
+                    );
+                    std::thread::sleep(RETRY_DELAY);
+                    attempts += 1;
+                }
+                Err(e) => {
+                    return Err(LxDosError::Message(format!(
+                        "Failed to connect to server after multiple attempts: {}",
+                        e
+                    )));
+                }
+            }
+        }
 
-        self.open_windows.insert(window_type, child_pipe_name);
+        if let Some(main_window) = self.windows.get(&WindowType::Main) {
+            main_window.client.send(&InstanceMessage::OpenWindow {
+                pipe_name: child_pipe_name.clone(),
+                window_type: window_type.clone(),
+            })?;
+        }
+
+        let new_window = Window {
+            pipe_name: child_pipe_name,
+            server: WindowServer::new(server, Some(child)),
+            client: WindowClient::new(new_window_client),
+        };
+
+        self.windows.insert(window_type, new_window);
 
         Ok(())
     }
-
     pub fn send_window_command(
-        &mut self,
+        &self,
         window_type: WindowType,
         command: InstanceMessage,
     ) -> Result<(), LxDosError> {
-        if let Some(pipe_name) = self.open_windows.get(&window_type) {
-            if let Some(client) = self.clients.get(pipe_name) {
-                client.send(&command)?;
-                return Ok(());
-            }
+        if let Some(window) = self.windows.get(&window_type) {
+            window.client.send(&command)?;
+            return Ok(());
         }
         Err(LxDosError::Message(format!(
             "No client found for window of type {:?}",

@@ -6,7 +6,6 @@ use system_tray::Event as TrayEvent;
 use system_tray::Menu as TrayMenu;
 pub fn start() -> Result<(), LxDosError> {
     let mut app = App::default();
-    app.windows.start_server()?;
 
     let tray = App::system_tray()
         .menu(TrayMenu::new("Open".to_string(), "open".to_string()))
