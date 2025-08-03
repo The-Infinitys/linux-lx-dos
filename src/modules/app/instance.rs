@@ -283,6 +283,7 @@ impl WindowManager {
             .arg(&pid)
             .arg(&child_pipe_name) // ここで子プロセス用のパイプ名を渡す
             .arg("window")
+            .arg(window_type.to_string().to_ascii_lowercase())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .spawn()?;
