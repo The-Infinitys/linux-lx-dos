@@ -36,7 +36,7 @@ impl Gui {
         let icon_bytes = include_bytes!("../../../public/icon.svg");
 
         // 一時ディレクトリ内にアイコンファイルを作成
-        let icon_path = resource_path.join(Gui::icon_name());
+        let icon_path = resource_path.join(Gui::icon_name()).with_extension("svg");
         {
             // スコープを限定し、ファイルハンドルをすぐにドロップしてファイルをロックしないようにします
             let mut file = File::create(&icon_path).expect("Failed to create temporary icon file.");
@@ -61,7 +61,7 @@ impl Gui {
     }
 
     fn icon_name() -> String {
-        format!("{}-app-icon.svg", App::app_id().to_ascii_lowercase())
+        format!("{}-app-icon", App::app_id().to_ascii_lowercase())
     }
 
     pub fn window_builder(gui: &gui::Application, title: &str) -> ApplicationWindowBuilder {
