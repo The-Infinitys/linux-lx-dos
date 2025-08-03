@@ -38,6 +38,8 @@ fn frontend() -> Result<(), linux_lx_dos::LxDosError> {
 fn backend() -> Result<(), linux_lx_dos::LxDosError> {
     let args = InnerArgs::parse();
     match args.command {
-        InnerSubCommands::Window => command::run_backend(&args.pipe_name),
+        InnerSubCommands::Window { window_type } => {
+            command::backend::window(&args.pipe_name, window_type)
+        }
     }
 }

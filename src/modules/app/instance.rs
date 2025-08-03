@@ -6,7 +6,9 @@ use std::ops::DerefMut;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, Hash, clap::Subcommand,
+)]
 pub enum WindowType {
     Main,
     Settings,

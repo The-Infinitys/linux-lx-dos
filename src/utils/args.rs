@@ -1,6 +1,8 @@
 use clap::Parser;
 use clap::Subcommand;
 
+use crate::modules::app::instance::WindowType;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
@@ -49,5 +51,8 @@ pub struct InnerArgs {
 #[derive(Debug, Subcommand)]
 pub enum InnerSubCommands {
     /// Show Window
-    Window,
+    Window {
+        #[command(subcommand)]
+        window_type: WindowType,
+    },
 }
