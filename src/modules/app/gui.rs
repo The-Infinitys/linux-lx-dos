@@ -1,6 +1,7 @@
 use std::fs;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 
 use super::App;
 use gui::{builders::ApplicationWindowBuilder, gio::prelude::ApplicationExtManual};
@@ -132,6 +133,42 @@ impl Gui {
 
     fn icon_name() -> String {
         format!("{}-app-icon", App::app_id().to_ascii_lowercase())
+    }
+
+    pub fn get_icon_cache_files() -> Vec<PathBuf> {
+        let home_dir = match home_dir() {
+            Some(path) => path,
+            None => {
+                eprintln!("Home directory not found.");
+                return Vec::new();
+            }
+        };
+
+        let icon_name = Self::icon_name();
+        let icon_sizes = [16, 24, 32, 48, 64, 128, 256, 512];
+        let mut paths: Vec<PathBuf> = Vec::new();
+
+        // Collect paths for PNG icons
+        for size in icon_sizes.iter() {
+            let size_dir_name = format!("{}x{}", size, size);
+            let icon_path = home_dir.join(format!(
+                ".local/share/icons/hicolor/{}/apps/{}.png",
+                size_dir_name, icon_name
+            ));
+            if icon_path.exists() {
+                paths.push(icon_path);
+            }
+        }
+
+        // Collect path for SVG icon
+        let svg_icon_path = home_dir.join(format!(
+            ".local/share/icons/hicolor/scalable/apps/{}.svg",
+            icon_name
+        ));
+        if svg_icon_path.exists() {
+            paths.push(svg_icon_path);
+        }
+        paths
     }
 
     pub fn window_builder(gui: &gui::Application, title: &str) -> ApplicationWindowBuilder {

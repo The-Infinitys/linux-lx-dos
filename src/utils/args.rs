@@ -37,6 +37,8 @@ pub enum Commands {
     Stop,
     /// Show welcome message
     Welcome,
+    /// Clear cache
+    Clear,
 }
 
 #[derive(Debug, Parser)]
