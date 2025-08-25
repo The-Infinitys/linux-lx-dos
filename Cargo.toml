@@ -15,3 +15,10 @@ gui = { version = "0.10.0", package = "gtk4", features = ["v4_18"] }
 bincode = { version = "2.0.1", features = ["serde"] }
 serde = { version = "1.0.219", features = ["derive"] }
 tempfile = "3.20.0"
+home = "0.5.11"
+[build-dependencies]
+resvg = "0.45.1"
+usvg = "0.45.1"
+tokio = { version = "1.47.1", features = ["full"] }
+fs_extra = "1.3.0"
+tiny-skia = "0.11.4"

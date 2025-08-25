@@ -1,20 +1,14 @@
+use std::fs;
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
 
 use super::App;
-use gui::{
-    builders::ApplicationWindowBuilder,
-    gio::prelude::{ApplicationExt, ApplicationExtManual},
-};
-use tempfile::TempDir;
+use gui::{builders::ApplicationWindowBuilder, gio::prelude::ApplicationExtManual};
+use home::home_dir;
 
-// Gui構造体を修正し、TempDirを保持して一時ファイルが削除されないようにします。
+// Gui構造体から一時ディレクトリのハンドルを削除します。
 pub struct Gui {
     gui: gui::Application,
-    #[allow(unused)]
-    resource_path: PathBuf,
-    _temp_dir: TempDir, // 一時ディレクトリのハンドルを保持
 }
 
 impl Default for Gui {
@@ -28,35 +22,111 @@ impl Gui {
     pub fn new() -> Self {
         let flags = gui::gio::ApplicationFlags::HANDLES_OPEN;
 
-        // tmpfileクレートを利用して一時ディレクトリを作成
-        let temp_dir = TempDir::new().expect("Failed to create temporary directory.");
-        let resource_path = temp_dir.path().to_path_buf();
+        // アイコンをローカルにインストール
+        Self::install_icons();
 
-        // アイコンファイルをバイナリとして直接組み込む
-        let icon_bytes = include_bytes!("../../../public/icon.svg");
-
-        // 一時ディレクトリ内にアイコンファイルを作成
-        let icon_path = resource_path.join(Gui::icon_name()).with_extension("svg");
-        {
-            // スコープを限定し、ファイルハンドルをすぐにドロップしてファイルをロックしないようにします
-            let mut file = File::create(&icon_path).expect("Failed to create temporary icon file.");
-            file.write_all(icon_bytes)
-                .expect("Failed to write to temporary icon file.");
-        }
-        println!("{}", icon_path.display());
         let gui = gui::Application::builder()
             .application_id(App::app_id())
             .flags(flags)
             .build();
 
-        // アプリケーションのリソースベースパスとして一時ディレクトリを設定
-        // これにより、GTKはicon_name()で指定された名前のファイルをこのパスから探します。
-        gui.set_resource_base_path(Some(resource_path.to_str().unwrap()));
+        Self { gui }
+    }
 
-        Self {
-            gui,
-            resource_path,
-            _temp_dir: temp_dir,
+    /// Freedesktopの仕様に基づいて、ユーザーのローカルディレクトリにアイコンをインストールします。
+    fn install_icons() {
+        let home_dir = match home_dir() {
+            Some(path) => path,
+            None => {
+                eprintln!("Home directory not found. Icon will not be installed.");
+                return;
+            }
+        };
+
+        let icon_name = Self::icon_name();
+        
+        // bin_data変数を作成し、[size, data]の配列としてPNGバイナリを管理
+        let bin_data = [
+            (16, include_bytes!(concat!(env!("OUT_DIR"), "/16x16.png")).to_vec()),
+            (24, include_bytes!(concat!(env!("OUT_DIR"), "/24x24.png")).to_vec()),
+            (32, include_bytes!(concat!(env!("OUT_DIR"), "/32x32.png")).to_vec()),
+            (48, include_bytes!(concat!(env!("OUT_DIR"), "/48x48.png")).to_vec()),
+            (64, include_bytes!(concat!(env!("OUT_DIR"), "/64x64.png")).to_vec()),
+            (128, include_bytes!(concat!(env!("OUT_DIR"), "/128x128.png")).to_vec()),
+            (256, include_bytes!(concat!(env!("OUT_DIR"), "/256x256.png")).to_vec()),
+            (512, include_bytes!(concat!(env!("OUT_DIR"), "/512x512.png")).to_vec()),
+        ];
+        
+        for (size, bytes) in bin_data.iter() {
+            let size_dir_name = format!("{}x{}", size, size);
+            let icon_path = home_dir.join(format!(".local/share/icons/hicolor/{}/apps/", size_dir_name));
+            
+            // ディレクトリが存在しない場合は作成
+            if let Err(e) = fs::create_dir_all(&icon_path) {
+                eprintln!("Failed to create icon directory: {}", e);
+                continue;
+            }
+            
+            let icon_file_path = icon_path.join(format!("{}.png", icon_name));
+
+            // アイコンファイルが既に存在する場合は、上書きの必要性を確認
+            if icon_file_path.exists() {
+                println!(
+                    "Icon file for size {} already exists at {}. Skipping installation.",
+                    size,
+                    icon_file_path.display()
+                );
+                continue;
+            }
+
+            // アイコンファイルを保存
+            let mut file = match File::create(&icon_file_path) {
+                Ok(file) => file,
+                Err(e) => {
+                    eprintln!(
+                        "Failed to create icon file at {}: {}",
+                        icon_file_path.display(),
+                        e
+                    );
+                    continue;
+                }
+            };
+    
+            if let Err(e) = file.write_all(bytes) {
+                eprintln!(
+                    "Failed to write to icon file at {}: {}",
+                    icon_file_path.display(),
+                    e
+                );
+            } else {
+                println!("Icon successfully installed at {}.", icon_file_path.display());
+            }
+        }
+        
+        // SVGアイコンもインストール
+        let svg_path = home_dir.join(".local/share/icons/hicolor/scalable/apps/");
+        if let Err(e) = fs::create_dir_all(&svg_path) {
+            eprintln!("Failed to create SVG icon directory: {}", e);
+            return;
+        }
+        let svg_file_path = svg_path.join(format!("{}.svg", icon_name));
+
+        if !svg_file_path.exists() {
+            let svg_bytes = include_bytes!("../../../public/icon.svg");
+            let mut file = match File::create(&svg_file_path) {
+                Ok(file) => file,
+                Err(e) => {
+                    eprintln!("Failed to create SVG file at {}: {}", svg_file_path.display(), e);
+                    return;
+                }
+            };
+            if let Err(e) = file.write_all(svg_bytes) {
+                eprintln!("Failed to write to SVG file at {}: {}", svg_file_path.display(), e);
+            } else {
+                println!("SVG icon successfully installed at {}.", svg_file_path.display());
+            }
+        } else {
+            println!("SVG icon file already exists at {}. Skipping installation.", svg_file_path.display());
         }
     }
 
