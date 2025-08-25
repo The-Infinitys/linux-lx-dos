@@ -1,15 +1,27 @@
+use super::App;
+use async_channel::{Receiver, Sender};
+use gui::builders::ApplicationWindowBuilder;
+use gui::gio::prelude::ApplicationExtManual;
+use gui::glib::{self, MainContext};
+use home::home_dir;
+use instance_pipe::Client;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
+use crate::modules::app::instance::InstanceMessage;
+use crate::LxDosError;
+use std::collections::HashMap;
 
-use super::App;
-use gui::{builders::ApplicationWindowBuilder, gio::prelude::ApplicationExtManual};
-use home::home_dir;
-
-// Gui構造体から一時ディレクトリのハンドルを削除します。
+// GUIアプリケーションのメイン構造体
 pub struct Gui {
     gui: gui::Application,
+    message_sender: Option<Sender<InstanceMessage>>,
+    message_receiver: Option<Receiver<InstanceMessage>>,
+    client_handle: Arc<Mutex<Option<JoinHandle<Result<(), LxDosError>>>>>,
 }
 
 impl Default for Gui {
@@ -23,7 +35,6 @@ impl Gui {
     pub fn new() -> Self {
         let flags = gui::gio::ApplicationFlags::HANDLES_OPEN;
 
-        // アイコンをローカルにインストール
         Self::install_icons();
 
         let gui = gui::Application::builder()
@@ -31,7 +42,12 @@ impl Gui {
             .flags(flags)
             .build();
 
-        Self { gui }
+        Self {
+            gui,
+            message_sender: None,
+            message_receiver: None,
+            client_handle: Arc::new(Mutex::new(None)),
+        }
     }
 
     /// Freedesktopの仕様に基づいて、ユーザーのローカルディレクトリにアイコンをインストールします。
@@ -46,7 +62,6 @@ impl Gui {
 
         let icon_name = Self::icon_name();
         
-        // bin_data変数を作成し、[size, data]の配列としてPNGバイナリを管理
         let bin_data = [
             (16, include_bytes!(concat!(env!("OUT_DIR"), "/16x16.png")).to_vec()),
             (24, include_bytes!(concat!(env!("OUT_DIR"), "/24x24.png")).to_vec()),
@@ -62,7 +77,6 @@ impl Gui {
             let size_dir_name = format!("{}x{}", size, size);
             let icon_path = home_dir.join(format!(".local/share/icons/hicolor/{}/apps/", size_dir_name));
             
-            // ディレクトリが存在しない場合は作成
             if let Err(e) = fs::create_dir_all(&icon_path) {
                 eprintln!("Failed to create icon directory: {}", e);
                 continue;
@@ -70,7 +84,6 @@ impl Gui {
             
             let icon_file_path = icon_path.join(format!("{}.png", icon_name));
 
-            // アイコンファイルが既に存在する場合は、上書きの必要性を確認
             if icon_file_path.exists() {
                 println!(
                     "Icon file for size {} already exists at {}. Skipping installation.",
@@ -80,7 +93,6 @@ impl Gui {
                 continue;
             }
 
-            // アイコンファイルを保存
             let mut file = match File::create(&icon_file_path) {
                 Ok(file) => file,
                 Err(e) => {
@@ -104,7 +116,6 @@ impl Gui {
             }
         }
         
-        // SVGアイコンもインストール
         let svg_path = home_dir.join(".local/share/icons/hicolor/scalable/apps/");
         if let Err(e) = fs::create_dir_all(&svg_path) {
             eprintln!("Failed to create SVG icon directory: {}", e);
@@ -148,7 +159,6 @@ impl Gui {
         let icon_sizes = [16, 24, 32, 48, 64, 128, 256, 512];
         let mut paths: Vec<PathBuf> = Vec::new();
 
-        // Collect paths for PNG icons
         for size in icon_sizes.iter() {
             let size_dir_name = format!("{}x{}", size, size);
             let icon_path = home_dir.join(format!(
@@ -160,7 +170,6 @@ impl Gui {
             }
         }
 
-        // Collect path for SVG icon
         let svg_icon_path = home_dir.join(format!(
             ".local/share/icons/hicolor/scalable/apps/{}.svg",
             icon_name
@@ -195,11 +204,88 @@ impl Gui {
             .icon_name(Gui::icon_name())
     }
 
-    pub fn handler<F: Fn(&gui::Application) + 'static>(&self, f: F) {
-        self.gui.connect_open(move |app, _files, _hint| f(app));
+    /// バックエンドからのメッセージを受信し、GUIスレッドで処理します。
+    pub fn on_message<F>(&self, f: F)
+    where
+        F: Fn(InstanceMessage) + 'static + Send,
+    {
+        let rx = self
+            .message_receiver
+            .as_ref()
+            .expect("Message receiver not initialized.");
+
+        let rx_clone = Arc::new(Mutex::new(rx.clone()));
+
+        MainContext::default().with_thread_default(move || {
+            glib::source::idle_add_local(move || {
+                let rx = rx_clone.lock().unwrap();
+                match rx.try_recv() {
+                    Ok(message) => {
+                        f(message);
+                        glib::ControlFlow::Continue
+                    }
+                    Err(async_channel::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                    Err(async_channel::TryRecvError::Closed) => {
+                        println!("Channel closed, stopping receiver");
+                        glib::ControlFlow::Break
+                    }
+                }
+            })
+        });
     }
 
-    pub fn run(&self) {
+    /// GUIアプリケーションのイベントハンドラを設定します。
+    pub fn handler<F: Fn(&gui::Application, &Sender<InstanceMessage>) + 'static>(&mut self, f: F) {
+        let (tx, rx) = async_channel::unbounded();
+        self.message_sender = Some(tx);
+        self.message_receiver = Some(rx);
+
+        let tx_clone = self.message_sender.clone().unwrap();
+        self.gui.connect_open(move |app, _files, _hint| {
+            f(app, &tx_clone);
+        });
+    }
+
+    /// GUIアプリケーションを実行し、バックエンドとの通信スレッドを管理します。
+    pub fn run(&mut self, pipe_name: &str) {
+        let pipe_name = pipe_name.to_string();
+        let client_handle_clone:Arc<Mutex<Option<JoinHandle<Result<(),LxDosError>>>>> = Arc::clone(&self.client_handle);
+        let sender_for_thread = self.message_sender.clone().unwrap();
+        
+        // バックエンドとの通信スレッドを起動
+        let handle = thread::spawn(move || {
+            let client = Client::start(&pipe_name)?;
+            loop {
+                match client.poll_event() {
+                    Ok(messages) => {
+                        for message in messages {
+                            println!("Sending message to channel: {}", message);
+                            if let Err(e) = sender_for_thread.send_blocking(message) {
+                                eprintln!("Failed to send message to channel: {}", e);
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Client poll error: {}", e);
+                        break;
+                    }
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            Ok::<(), LxDosError>(())
+        });
+
+        *client_handle_clone.lock().unwrap() = Some(handle);
+
         self.gui.run();
+
+        // アプリケーション終了時にスレッドをクリーンアップ
+        if let Some(handle) = self.client_handle.lock().unwrap().take() {
+            if let Err(e) = handle.join() {
+                eprintln!("Client thread panicked: {:?}", e);
+            }
+        }
+        println!("Application closed");
     }
 }
