@@ -1,12 +1,10 @@
 use super::App;
-use crate::LxDosError;
-use crate::modules::app::instance::InstanceMessage;
 use async_channel::{Receiver, Sender};
 use gui::builders::ApplicationWindowBuilder;
 use gui::gio::prelude::ApplicationExtManual;
 use gui::glib::{self, MainContext};
 use home::home_dir;
-use instance_pipe::{Client, Event};
+use instance_pipe::Client;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -14,6 +12,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
+use crate::modules::app::instance::InstanceMessage;
+use crate::LxDosError;
 
 // GUIアプリケーションのメイン構造体
 pub struct Gui {
@@ -60,54 +60,27 @@ impl Gui {
         };
 
         let icon_name = Self::icon_name();
-
+        
         let bin_data = [
-            (
-                16,
-                include_bytes!(concat!(env!("OUT_DIR"), "/16x16.png")).to_vec(),
-            ),
-            (
-                24,
-                include_bytes!(concat!(env!("OUT_DIR"), "/24x24.png")).to_vec(),
-            ),
-            (
-                32,
-                include_bytes!(concat!(env!("OUT_DIR"), "/32x32.png")).to_vec(),
-            ),
-            (
-                48,
-                include_bytes!(concat!(env!("OUT_DIR"), "/48x48.png")).to_vec(),
-            ),
-            (
-                64,
-                include_bytes!(concat!(env!("OUT_DIR"), "/64x64.png")).to_vec(),
-            ),
-            (
-                128,
-                include_bytes!(concat!(env!("OUT_DIR"), "/128x128.png")).to_vec(),
-            ),
-            (
-                256,
-                include_bytes!(concat!(env!("OUT_DIR"), "/256x256.png")).to_vec(),
-            ),
-            (
-                512,
-                include_bytes!(concat!(env!("OUT_DIR"), "/512x512.png")).to_vec(),
-            ),
+            (16, include_bytes!(concat!(env!("OUT_DIR"), "/16x16.png")).to_vec()),
+            (24, include_bytes!(concat!(env!("OUT_DIR"), "/24x24.png")).to_vec()),
+            (32, include_bytes!(concat!(env!("OUT_DIR"), "/32x32.png")).to_vec()),
+            (48, include_bytes!(concat!(env!("OUT_DIR"), "/48x48.png")).to_vec()),
+            (64, include_bytes!(concat!(env!("OUT_DIR"), "/64x64.png")).to_vec()),
+            (128, include_bytes!(concat!(env!("OUT_DIR"), "/128x128.png")).to_vec()),
+            (256, include_bytes!(concat!(env!("OUT_DIR"), "/256x256.png")).to_vec()),
+            (512, include_bytes!(concat!(env!("OUT_DIR"), "/512x512.png")).to_vec()),
         ];
-
+        
         for (size, bytes) in bin_data.iter() {
             let size_dir_name = format!("{}x{}", size, size);
-            let icon_path = home_dir.join(format!(
-                ".local/share/icons/hicolor/{}/apps/",
-                size_dir_name
-            ));
-
+            let icon_path = home_dir.join(format!(".local/share/icons/hicolor/{}/apps/", size_dir_name));
+            
             if let Err(e) = fs::create_dir_all(&icon_path) {
                 eprintln!("Failed to create icon directory: {}", e);
                 continue;
             }
-
+            
             let icon_file_path = icon_path.join(format!("{}.png", icon_name));
 
             if icon_file_path.exists() {
@@ -130,7 +103,7 @@ impl Gui {
                     continue;
                 }
             };
-
+    
             if let Err(e) = file.write_all(bytes) {
                 eprintln!(
                     "Failed to write to icon file at {}: {}",
@@ -138,13 +111,10 @@ impl Gui {
                     e
                 );
             } else {
-                println!(
-                    "Icon successfully installed at {}.",
-                    icon_file_path.display()
-                );
+                println!("Icon successfully installed at {}.", icon_file_path.display());
             }
         }
-
+        
         let svg_path = home_dir.join(".local/share/icons/hicolor/scalable/apps/");
         if let Err(e) = fs::create_dir_all(&svg_path) {
             eprintln!("Failed to create SVG icon directory: {}", e);
@@ -157,31 +127,17 @@ impl Gui {
             let mut file = match File::create(&svg_file_path) {
                 Ok(file) => file,
                 Err(e) => {
-                    eprintln!(
-                        "Failed to create SVG file at {}: {}",
-                        svg_file_path.display(),
-                        e
-                    );
+                    eprintln!("Failed to create SVG file at {}: {}", svg_file_path.display(), e);
                     return;
                 }
             };
             if let Err(e) = file.write_all(svg_bytes) {
-                eprintln!(
-                    "Failed to write to SVG file at {}: {}",
-                    svg_file_path.display(),
-                    e
-                );
+                eprintln!("Failed to write to SVG file at {}: {}", svg_file_path.display(), e);
             } else {
-                println!(
-                    "SVG icon successfully installed at {}.",
-                    svg_file_path.display()
-                );
+                println!("SVG icon successfully installed at {}.", svg_file_path.display());
             }
         } else {
-            println!(
-                "SVG icon file already exists at {}. Skipping installation.",
-                svg_file_path.display()
-            );
+            println!("SVG icon file already exists at {}. Skipping installation.", svg_file_path.display());
         }
     }
 
@@ -302,13 +258,11 @@ impl Gui {
         let handle = thread::spawn(move || {
             let mut client = Client::start(&pipe_name)?;
             loop {
-                // `Event<InstanceMessage>` を明示的に指定
+                // poll_eventはVec<InstanceMessage>を直接返す
                 match client.poll_event::<InstanceMessage>() {
                     Ok(messages) => {
                         if let Some(message) = messages {
-                            // デバッグフォーマットに変更
-                            // `Event::Message` から `InstanceMessage` を取得して送信
-                            if let Event::MessageReceived(msg) = message {
+                            if let instance_pipe::Event::MessageReceived(msg) = message {
                                 if let Err(e) = sender_for_thread.send_blocking(msg) {
                                     eprintln!("Failed to send message to channel: {}", e);
                                     break;
