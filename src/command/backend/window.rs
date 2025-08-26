@@ -1,15 +1,16 @@
 use crate::LxDosError;
 use crate::modules::app::gui::Gui;
 use crate::modules::app::instance::{InstanceMessage, WindowType};
+use async_channel::Sender;
 use gui::prelude::*;
 
 pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosError> {
     let mut gui = Gui::new();
 
-    // 1. まず、handlerを呼び出してメッセージチャンネルを初期化します。
-    //    このクロージャはGUIアプリケーションがウィンドウを開く際に実行されます。
+    // 1. `gui.handler` を呼び出して、GUIイベント（ウィンドウの表示など）と
+    //    メッセージチャンネルの初期化を行います。
     gui.handler(
-        move |app: &gui::Application, _tx_message: &async_channel::Sender<InstanceMessage>| {
+        move |app: &gui::Application, tx_message: &Sender<InstanceMessage>| {
             let window_title = "Lx DOS";
             let button = gui::Button::builder()
                 .label("Press me!")
@@ -35,9 +36,13 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
                 }
             });
 
-            window.connect_close_request(move |window| {
-                println!("Window close requested.");
-                window.close();
+            // 閉じる要求時にバックエンドにメッセージを送信する
+            let tx_message_clone = tx_message.clone();
+            window.connect_close_request(move |_| {
+                println!("Window close requested, sending CloseWindow message.");
+                let _ = tx_message_clone.send_blocking(InstanceMessage::CloseWindow {
+                    pipe_name: "main_window".to_string(), // または適切なパイプ名
+                });
                 gui::glib::Propagation::Proceed
             });
 
@@ -48,14 +53,16 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
 
             app.connect_window_removed(|app, _| {
                 println!("Window removed from application");
-                app.quit();
+                // すべてのウィンドウが閉じられたときにアプリケーションを終了させる
+                if app.windows().is_empty() {
+                    app.quit();
+                }
             });
         },
     );
 
-    // 2. 次に、GUIスレッドでバックエンドからのメッセージを処理するロジックを設定します。
-    //    この時点ではmessage_receiverが確実に初期化されています。
-    gui.on_message(|message| {
+    // 2. `gui.on_message` を呼び出して、受信したメッセージのハンドリングロジックを設定します。
+    gui.on_message(|app, message| {
         match message {
             InstanceMessage::OpenWindow {
                 pipe_name,
@@ -65,10 +72,11 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
                     "Received OpenWindow for pipe: {}, type: {:?}",
                     pipe_name, window_type
                 );
-                // ここでウィンドウを開くなどのGUI操作を実行
+                // ここで新しいウィンドウを開くなどのGUI操作を実行
             }
             InstanceMessage::CloseWindow { pipe_name } => {
                 println!("Received CloseWindow for pipe: {}", pipe_name);
+                app.quit();
             }
             InstanceMessage::MaximizeWindow { pipe_name } => {
                 println!("Received MaximizeWindow for pipe: {}", pipe_name);
@@ -82,7 +90,10 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
         }
     });
 
+    // 3. アプリケーションを実行します。
+    //    このメソッド内で、バックエンド通信スレッドも適切に管理されます。
     gui.run(pipe_name);
 
+    println!("Application closed");
     Ok(())
 }

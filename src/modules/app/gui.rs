@@ -1,10 +1,13 @@
 use super::App;
+use crate::LxDosError;
+use crate::modules::app::instance::InstanceMessage;
 use async_channel::{Receiver, Sender};
 use gui::builders::ApplicationWindowBuilder;
 use gui::gio::prelude::ApplicationExtManual;
+use gui::glib::clone::Downgrade;
 use gui::glib::{self, MainContext};
 use home::home_dir;
-use instance_pipe::Client;
+use instance_pipe::{Client, Event};
 use std::fs;
 use std::fs::File;
 use std::io::Write;
@@ -12,8 +15,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
-use crate::modules::app::instance::InstanceMessage;
-use crate::LxDosError;
 
 // GUIアプリケーションのメイン構造体
 pub struct Gui {
@@ -21,6 +22,8 @@ pub struct Gui {
     message_sender: Option<Sender<InstanceMessage>>,
     message_receiver: Option<Receiver<InstanceMessage>>,
     client_handle: Arc<Mutex<Option<JoinHandle<Result<(), LxDosError>>>>>,
+    // メッセージハンドラを保持するための新しいフィールド
+    message_handler: Option<Box<dyn Fn(&gui::Application, InstanceMessage) + 'static + Send>>,
 }
 
 impl Default for Gui {
@@ -46,6 +49,7 @@ impl Gui {
             message_sender: None,
             message_receiver: None,
             client_handle: Arc::new(Mutex::new(None)),
+            message_handler: None,
         }
     }
 
@@ -60,27 +64,54 @@ impl Gui {
         };
 
         let icon_name = Self::icon_name();
-        
+
         let bin_data = [
-            (16, include_bytes!(concat!(env!("OUT_DIR"), "/16x16.png")).to_vec()),
-            (24, include_bytes!(concat!(env!("OUT_DIR"), "/24x24.png")).to_vec()),
-            (32, include_bytes!(concat!(env!("OUT_DIR"), "/32x32.png")).to_vec()),
-            (48, include_bytes!(concat!(env!("OUT_DIR"), "/48x48.png")).to_vec()),
-            (64, include_bytes!(concat!(env!("OUT_DIR"), "/64x64.png")).to_vec()),
-            (128, include_bytes!(concat!(env!("OUT_DIR"), "/128x128.png")).to_vec()),
-            (256, include_bytes!(concat!(env!("OUT_DIR"), "/256x256.png")).to_vec()),
-            (512, include_bytes!(concat!(env!("OUT_DIR"), "/512x512.png")).to_vec()),
+            (
+                16,
+                include_bytes!(concat!(env!("OUT_DIR"), "/16x16.png")).to_vec(),
+            ),
+            (
+                24,
+                include_bytes!(concat!(env!("OUT_DIR"), "/24x24.png")).to_vec(),
+            ),
+            (
+                32,
+                include_bytes!(concat!(env!("OUT_DIR"), "/32x32.png")).to_vec(),
+            ),
+            (
+                48,
+                include_bytes!(concat!(env!("OUT_DIR"), "/48x48.png")).to_vec(),
+            ),
+            (
+                64,
+                include_bytes!(concat!(env!("OUT_DIR"), "/64x64.png")).to_vec(),
+            ),
+            (
+                128,
+                include_bytes!(concat!(env!("OUT_DIR"), "/128x128.png")).to_vec(),
+            ),
+            (
+                256,
+                include_bytes!(concat!(env!("OUT_DIR"), "/256x256.png")).to_vec(),
+            ),
+            (
+                512,
+                include_bytes!(concat!(env!("OUT_DIR"), "/512x512.png")).to_vec(),
+            ),
         ];
-        
+
         for (size, bytes) in bin_data.iter() {
             let size_dir_name = format!("{}x{}", size, size);
-            let icon_path = home_dir.join(format!(".local/share/icons/hicolor/{}/apps/", size_dir_name));
-            
+            let icon_path = home_dir.join(format!(
+                ".local/share/icons/hicolor/{}/apps/",
+                size_dir_name
+            ));
+
             if let Err(e) = fs::create_dir_all(&icon_path) {
                 eprintln!("Failed to create icon directory: {}", e);
                 continue;
             }
-            
+
             let icon_file_path = icon_path.join(format!("{}.png", icon_name));
 
             if icon_file_path.exists() {
@@ -103,7 +134,7 @@ impl Gui {
                     continue;
                 }
             };
-    
+
             if let Err(e) = file.write_all(bytes) {
                 eprintln!(
                     "Failed to write to icon file at {}: {}",
@@ -111,10 +142,13 @@ impl Gui {
                     e
                 );
             } else {
-                println!("Icon successfully installed at {}.", icon_file_path.display());
+                println!(
+                    "Icon successfully installed at {}.",
+                    icon_file_path.display()
+                );
             }
         }
-        
+
         let svg_path = home_dir.join(".local/share/icons/hicolor/scalable/apps/");
         if let Err(e) = fs::create_dir_all(&svg_path) {
             eprintln!("Failed to create SVG icon directory: {}", e);
@@ -127,17 +161,31 @@ impl Gui {
             let mut file = match File::create(&svg_file_path) {
                 Ok(file) => file,
                 Err(e) => {
-                    eprintln!("Failed to create SVG file at {}: {}", svg_file_path.display(), e);
+                    eprintln!(
+                        "Failed to create SVG file at {}: {}",
+                        svg_file_path.display(),
+                        e
+                    );
                     return;
                 }
             };
             if let Err(e) = file.write_all(svg_bytes) {
-                eprintln!("Failed to write to SVG file at {}: {}", svg_file_path.display(), e);
+                eprintln!(
+                    "Failed to write to SVG file at {}: {}",
+                    svg_file_path.display(),
+                    e
+                );
             } else {
-                println!("SVG icon successfully installed at {}.", svg_file_path.display());
+                println!(
+                    "SVG icon successfully installed at {}.",
+                    svg_file_path.display()
+                );
             }
         } else {
-            println!("SVG icon file already exists at {}. Skipping installation.", svg_file_path.display());
+            println!(
+                "SVG icon file already exists at {}. Skipping installation.",
+                svg_file_path.display()
+            );
         }
     }
 
@@ -203,36 +251,14 @@ impl Gui {
             .icon_name(Gui::icon_name())
     }
 
-    /// バックエンドからのメッセージを受信し、GUIスレッドで処理します。
-    pub fn on_message<F>(&self, f: F)
+    /// バックエンドからのメッセージを受信し、GUIスレッドで処理するためのハンドラを設定します。
+    // この関数はハンドラを保存するだけで、実行は開始しません。
+    pub fn on_message<F>(&mut self, f: F)
     where
-        F: Fn(InstanceMessage) + 'static + Send,
+        F: Fn(&gui::Application, InstanceMessage) + 'static + Send,
     {
-        let rx = self
-            .message_receiver
-            .as_ref()
-            .expect("Message receiver not initialized.");
-
-        let rx_clone = Arc::new(Mutex::new(rx.clone()));
-
-        MainContext::default()
-            .with_thread_default(move || {
-                glib::source::idle_add_local(move || {
-                    let rx = rx_clone.lock().unwrap();
-                    match rx.try_recv() {
-                        Ok(message) => {
-                            f(message);
-                            glib::ControlFlow::Continue
-                        }
-                        Err(async_channel::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                        Err(async_channel::TryRecvError::Closed) => {
-                            println!("Channel closed, stopping receiver");
-                            glib::ControlFlow::Break
-                        }
-                    }
-                })
-            })
-            .expect("Error happened while glib running");
+        // 受け取ったクロージャをBoxに詰めてフィールドに保存
+        self.message_handler = Some(Box::new(f));
     }
 
     /// GUIアプリケーションのイベントハンドラを設定します。
@@ -248,6 +274,7 @@ impl Gui {
     }
 
     /// GUIアプリケーションを実行し、バックエンドとの通信スレッドを管理します。
+    // メッセージ受信コンテキストの実行をここで行います。
     pub fn run(&mut self, pipe_name: &str) {
         let pipe_name = pipe_name.to_string();
         let client_handle_clone: Arc<Mutex<Option<JoinHandle<Result<(), LxDosError>>>>> =
@@ -258,11 +285,13 @@ impl Gui {
         let handle = thread::spawn(move || {
             let mut client = Client::start(&pipe_name)?;
             loop {
-                // poll_eventはVec<InstanceMessage>を直接返す
+                // `Event<InstanceMessage>` を明示的に指定
                 match client.poll_event::<InstanceMessage>() {
                     Ok(messages) => {
                         if let Some(message) = messages {
-                            if let instance_pipe::Event::MessageReceived(msg) = message {
+                            // デバッグフォーマットに変更
+                            // `Event::Message` から `InstanceMessage` を取得して送信
+                            if let Event::MessageReceived(msg) = message {
                                 if let Err(e) = sender_for_thread.send_blocking(msg) {
                                     eprintln!("Failed to send message to channel: {}", e);
                                     break;
@@ -282,6 +311,42 @@ impl Gui {
 
         *client_handle_clone.lock().unwrap() = Some(handle);
 
+        // on_messageで設定されたハンドラを実行
+        let rx = self.message_receiver
+            .as_ref()
+            .expect("Message receiver not initialized.");
+
+        let rx_clone = Arc::new(Mutex::new(rx.clone()));
+
+        let app_clone = self.gui.downgrade();
+
+        let message_handler = self
+            .message_handler
+            .take() // ハンドラの所有権を取得し、フィールドから削除
+            .expect("Message handler not initialized.");
+
+        MainContext::default()
+            .with_thread_default(move || {
+                glib::source::idle_add_local(move || {
+                    let rx = rx_clone.lock().unwrap();
+                    match rx.try_recv() {
+                        Ok(message) => {
+                            if let Some(app) = app_clone.upgrade() {
+                                // 保存されたハンドラを実行
+                                message_handler(&app, message);
+                            }
+                            glib::ControlFlow::Continue
+                        }
+                        Err(async_channel::TryRecvError::Empty) => glib::ControlFlow::Continue,
+                        Err(async_channel::TryRecvError::Closed) => {
+                            println!("Channel closed, stopping receiver");
+                            glib::ControlFlow::Break
+                        }
+                    }
+                })
+            })
+            .expect("Error happened while glib running");
+        
         self.gui.run();
 
         // アプリケーション終了時にスレッドをクリーンアップ
