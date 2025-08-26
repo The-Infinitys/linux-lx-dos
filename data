@@ -1,0 +1,3 @@
+   Compiling linux-lx-dos v0.1.0 (/home/the-infinitys/github/linux-lx-dos)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.99s
+     Running `target/debug/linux-lx-dos start`

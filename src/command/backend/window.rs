@@ -6,34 +6,8 @@ use gui::prelude::*;
 pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosError> {
     let mut gui = Gui::new();
 
-    // GUIスレッドでバックエンドからのメッセージを処理
-    gui.on_message(|message| {
-        match message {
-            InstanceMessage::OpenWindow {
-                pipe_name,
-                window_type,
-            } => {
-                println!(
-                    "Received OpenWindow for pipe: {}, type: {:?}",
-                    pipe_name, window_type
-                );
-                // ここでウィンドウを開くなどのGUI操作を実行
-            }
-            InstanceMessage::CloseWindow { pipe_name } => {
-                println!("Received CloseWindow for pipe: {}", pipe_name);
-            }
-            InstanceMessage::MaximizeWindow { pipe_name } => {
-                println!("Received MaximizeWindow for pipe: {}", pipe_name);
-            }
-            InstanceMessage::MinimizeWindow { pipe_name } => {
-                println!("Received MinimizeWindow for pipe: {}", pipe_name);
-            }
-            InstanceMessage::RestoreWindow { pipe_name } => {
-                println!("Received RestoreWindow for pipe: {}", pipe_name);
-            }
-        }
-    });
-
+    // 1. まず、handlerを呼び出してメッセージチャンネルを初期化します。
+    //    このクロージャはGUIアプリケーションがウィンドウを開く際に実行されます。
     gui.handler(
         move |app: &gui::Application, _tx_message: &async_channel::Sender<InstanceMessage>| {
             let window_title = "Lx DOS";
@@ -78,6 +52,35 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
             });
         },
     );
+
+    // 2. 次に、GUIスレッドでバックエンドからのメッセージを処理するロジックを設定します。
+    //    この時点ではmessage_receiverが確実に初期化されています。
+    gui.on_message(|message| {
+        match message {
+            InstanceMessage::OpenWindow {
+                pipe_name,
+                window_type,
+            } => {
+                println!(
+                    "Received OpenWindow for pipe: {}, type: {:?}",
+                    pipe_name, window_type
+                );
+                // ここでウィンドウを開くなどのGUI操作を実行
+            }
+            InstanceMessage::CloseWindow { pipe_name } => {
+                println!("Received CloseWindow for pipe: {}", pipe_name);
+            }
+            InstanceMessage::MaximizeWindow { pipe_name } => {
+                println!("Received MaximizeWindow for pipe: {}", pipe_name);
+            }
+            InstanceMessage::MinimizeWindow { pipe_name } => {
+                println!("Received MinimizeWindow for pipe: {}", pipe_name);
+            }
+            InstanceMessage::RestoreWindow { pipe_name } => {
+                println!("Received RestoreWindow for pipe: {}", pipe_name);
+            }
+        }
+    });
 
     gui.run(pipe_name);
 
