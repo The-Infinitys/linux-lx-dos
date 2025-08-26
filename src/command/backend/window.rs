@@ -56,11 +56,12 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
                 // すべてのウィンドウが閉じられたときにアプリケーションを終了させる
                 if app.windows().is_empty() {
                     app.quit();
+                    println!("app wuit");
                 }
             });
         },
     );
-
+            
     // 2. `gui.on_message` を呼び出して、受信したメッセージのハンドリングロジックを設定します。
     gui.on_message(|app, message| {
         match message {
