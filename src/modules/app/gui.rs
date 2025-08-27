@@ -22,6 +22,7 @@ pub struct Gui {
     message_sender: Option<Sender<InstanceMessage>>,
     message_receiver: Option<Receiver<InstanceMessage>>,
     client_handle: Arc<Mutex<Option<JoinHandle<Result<(), LxDosError>>>>>,
+    stop_flag: Arc<std::sync::atomic::AtomicBool>,
     // メッセージハンドラを保持するための新しいフィールド
     message_handler: Option<Box<dyn Fn(&gui::Application, InstanceMessage) + 'static + Send>>,
 }
@@ -49,6 +50,7 @@ impl Gui {
             message_sender: None,
             message_receiver: None,
             client_handle: Arc::new(Mutex::new(None)),
+            stop_flag: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             message_handler: None,
         }
     }
@@ -280,17 +282,15 @@ impl Gui {
         let client_handle_clone: Arc<Mutex<Option<JoinHandle<Result<(), LxDosError>>>>> =
             Arc::clone(&self.client_handle);
         let sender_for_thread = self.message_sender.clone().unwrap();
+        let stop_flag = self.stop_flag.clone();
 
         // バックエンドとの通信スレッドを起動
         let handle = thread::spawn(move || {
             let mut client = Client::start(&pipe_name)?;
-            loop {
-                // `Event<InstanceMessage>` を明示的に指定
+            while !stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
                 match client.poll_event::<InstanceMessage>() {
                     Ok(messages) => {
                         if let Some(message) = messages {
-                            // デバッグフォーマットに変更
-                            // `Event::Message` から `InstanceMessage` を取得して送信
                             if let Event::MessageReceived(msg) = message {
                                 if let Err(e) = sender_for_thread.send_blocking(msg) {
                                     eprintln!("Failed to send message to channel: {}", e);
@@ -312,17 +312,16 @@ impl Gui {
         *client_handle_clone.lock().unwrap() = Some(handle);
 
         // on_messageで設定されたハンドラを実行
-        let rx = self.message_receiver
+        let rx = self
+            .message_receiver
             .as_ref()
             .expect("Message receiver not initialized.");
 
         let rx_clone = Arc::new(Mutex::new(rx.clone()));
-
         let app_clone = self.gui.downgrade();
-
         let message_handler = self
             .message_handler
-            .take() // ハンドラの所有権を取得し、フィールドから削除
+            .take()
             .expect("Message handler not initialized.");
 
         MainContext::default()
@@ -332,7 +331,6 @@ impl Gui {
                     match rx.try_recv() {
                         Ok(message) => {
                             if let Some(app) = app_clone.upgrade() {
-                                // 保存されたハンドラを実行
                                 message_handler(&app, message);
                             }
                             glib::ControlFlow::Continue
@@ -346,8 +344,12 @@ impl Gui {
                 })
             })
             .expect("Error happened while glib running");
-        
+
         self.gui.run();
+        println!("GLib main loop exited");
+
+        // スレッド停止フラグを立てる
+        self.stop_flag.store(true, std::sync::atomic::Ordering::SeqCst);
 
         // アプリケーション終了時にスレッドをクリーンアップ
         if let Some(handle) = self.client_handle.lock().unwrap().take() {
@@ -355,6 +357,5 @@ impl Gui {
                 eprintln!("Client thread panicked: {:?}", e);
             }
         }
-        println!("Application closed");
     }
 }

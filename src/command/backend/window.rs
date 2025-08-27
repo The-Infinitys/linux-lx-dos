@@ -7,8 +7,7 @@ use gui::prelude::*;
 pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosError> {
     let mut gui = Gui::new();
 
-    // 1. `gui.handler` を呼び出して、GUIイベント（ウィンドウの表示など）と
-    //    メッセージチャンネルの初期化を行います。
+    let pipe_name_str = pipe_name.to_string();
     gui.handler(
         move |app: &gui::Application, tx_message: &Sender<InstanceMessage>| {
             let window_title = "Lx DOS";
@@ -26,8 +25,6 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
                 .height_request(360)
                 .build();
 
-            window.present();
-
             let window_weak = window.downgrade();
             button.connect_clicked(move |_| {
                 if let Some(window) = window_weak.upgrade() {
@@ -36,13 +33,17 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
                 }
             });
 
-            // 閉じる要求時にバックエンドにメッセージを送信する
             let tx_message_clone = tx_message.clone();
-            window.connect_close_request(move |_| {
-                println!("Window close requested, sending CloseWindow message.");
+            let pipe_name_for_close = pipe_name_str.clone();
+            window.connect_close_request(move |window| {
+                println!(
+                    "Window close requested, sending CloseWindow: {}",
+                    pipe_name_for_close
+                );
                 let _ = tx_message_clone.send_blocking(InstanceMessage::CloseWindow {
-                    pipe_name: "main_window".to_string(), // または適切なパイプ名
+                    pipe_name: pipe_name_for_close.clone(),
                 });
+                window.close();
                 gui::glib::Propagation::Proceed
             });
 
@@ -53,16 +54,24 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
 
             app.connect_window_removed(|app, _| {
                 println!("Window removed from application");
-                // すべてのウィンドウが閉じられたときにアプリケーションを終了させる
                 if app.windows().is_empty() {
                     app.quit();
-                    println!("app wuit");
                 }
             });
+
+            // Activate時にOpenWindowメッセージを送信
+            let tx_for_activate = tx_message.clone();
+            let pipe_name_clone_for_activate = pipe_name_str.clone();
+            println!("Application activated, sending OpenWindow message.");
+            let _ = tx_for_activate.send_blocking(InstanceMessage::OpenWindow {
+                pipe_name: pipe_name_clone_for_activate,
+                window_type: WindowType::Main,
+            });
+
+            window.present();
         },
     );
-            
-    // 2. `gui.on_message` を呼び出して、受信したメッセージのハンドリングロジックを設定します。
+
     gui.on_message(|app, message| {
         match message {
             InstanceMessage::OpenWindow {
@@ -73,7 +82,7 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
                     "Received OpenWindow for pipe: {}, type: {:?}",
                     pipe_name, window_type
                 );
-                // ここで新しいウィンドウを開くなどのGUI操作を実行
+                // 必要ならここで新しいウィンドウを開く
             }
             InstanceMessage::CloseWindow { pipe_name } => {
                 println!("Received CloseWindow for pipe: {}", pipe_name);
@@ -81,18 +90,26 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
             }
             InstanceMessage::MaximizeWindow { pipe_name } => {
                 println!("Received MaximizeWindow for pipe: {}", pipe_name);
+                if let Some(window) = app.active_window() {
+                    window.maximize();
+                }
             }
             InstanceMessage::MinimizeWindow { pipe_name } => {
                 println!("Received MinimizeWindow for pipe: {}", pipe_name);
+                if let Some(window) = app.active_window() {
+                    window.minimize();
+                }
             }
             InstanceMessage::RestoreWindow { pipe_name } => {
                 println!("Received RestoreWindow for pipe: {}", pipe_name);
+                if let Some(window) = app.active_window() {
+                    window.unmaximize();
+                    window.present();
+                }
             }
         }
     });
 
-    // 3. アプリケーションを実行します。
-    //    このメソッド内で、バックエンド通信スレッドも適切に管理されます。
     gui.run(pipe_name);
 
     println!("Application closed");
