@@ -3,7 +3,7 @@
 		use std::env;
 		let config_dir = env::var_os("XDG_CONFIG_HOME")
 			.map(PathBuf::from)
-			.or_else(|| dirs::config_dir());
+			.or_else(dirs::config_dir);
 		let mut path = config_dir.unwrap_or_else(|| {
 			// fallback: ~/.config
 			let mut home = dirs::home_dir().expect("Home directory not found");
