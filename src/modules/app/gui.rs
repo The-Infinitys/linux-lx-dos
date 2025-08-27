@@ -16,15 +16,18 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+type ClientHandle = Arc<Mutex<Option<JoinHandle<Result<(), LxDosError>>>>>;
+type MessageHandler = Box<dyn Fn(&gui::Application, InstanceMessage) + 'static + Send>;
+
 // GUIアプリケーションのメイン構造体
 pub struct Gui {
     gui: gui::Application,
     message_sender: Option<Sender<InstanceMessage>>,
     message_receiver: Option<Receiver<InstanceMessage>>,
-    client_handle: Arc<Mutex<Option<JoinHandle<Result<(), LxDosError>>>>>,
+    client_handle: ClientHandle,
     stop_flag: Arc<std::sync::atomic::AtomicBool>,
     // メッセージハンドラを保持するための新しいフィールド
-    message_handler: Option<Box<dyn Fn(&gui::Application, InstanceMessage) + 'static + Send>>,
+    message_handler: Option<MessageHandler>,
 }
 
 impl Default for Gui {
@@ -279,8 +282,7 @@ impl Gui {
     // メッセージ受信コンテキストの実行をここで行います。
     pub fn run(&mut self, pipe_name: &str) {
         let pipe_name = pipe_name.to_string();
-        let client_handle_clone: Arc<Mutex<Option<JoinHandle<Result<(), LxDosError>>>>> =
-            Arc::clone(&self.client_handle);
+    let client_handle_clone: ClientHandle = Arc::clone(&self.client_handle);
         let sender_for_thread = self.message_sender.clone().unwrap();
         let stop_flag = self.stop_flag.clone();
 
@@ -289,16 +291,13 @@ impl Gui {
             let mut client = Client::start(&pipe_name)?;
             while !stop_flag.load(std::sync::atomic::Ordering::SeqCst) {
                 match client.poll_event::<InstanceMessage>() {
-                    Ok(messages) => {
-                        if let Some(message) = messages {
-                            if let Event::MessageReceived(msg) = message {
-                                if let Err(e) = sender_for_thread.send_blocking(msg) {
-                                    eprintln!("Failed to send message to channel: {}", e);
-                                    break;
-                                }
-                            }
+                    Ok(Some(Event::MessageReceived(msg))) => {
+                        if let Err(e) = sender_for_thread.send_blocking(msg) {
+                            eprintln!("Failed to send message to channel: {}", e);
+                            break;
                         }
                     }
+                    Ok(_) => {}
                     Err(e) => {
                         eprintln!("Client poll error: {}", e);
                         break;
