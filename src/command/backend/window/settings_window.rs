@@ -6,8 +6,8 @@ use gui::prelude::*;
 pub fn handle_gui(app: &gui::Application, tx_message: &Sender<InstanceMessage>) {
     let window_title = "Lx DOS -Settings";
 
-    // 設定データの例（本来はAppやグローバルから取得する）
-    let settings = Settings::new(None); // ←必要に応じてファイルパスを渡す
+    // 設定ファイルから読み込む
+    let settings = Settings::open();
     let settings_list: Vec<SettingsData> = settings.keys();
 
     let vbox = gui::Box::new(gui::Orientation::Vertical, 8);
