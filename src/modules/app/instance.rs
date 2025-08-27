@@ -12,6 +12,8 @@ use std::sync::{Arc, Mutex};
 pub enum WindowType {
     Main,
     Settings,
+    Welcome,
+    // 他のバリアントがあればここに追加
 }
 
 impl std::fmt::Display for WindowType {

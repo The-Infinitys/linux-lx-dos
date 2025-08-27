@@ -6,6 +6,7 @@ use crate::utils::args::Args;
 use crate::utils::args::Commands;
 use system_tray::SystemTray;
 pub mod gui;
+pub mod settings;
 #[derive(Default)]
 pub struct App {
     pub windows: instance::WindowManager,

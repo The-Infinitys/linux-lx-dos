@@ -3,55 +3,19 @@ use crate::modules::app::gui::Gui;
 use crate::modules::app::instance::{InstanceMessage, WindowType};
 use async_channel::Sender;
 use gui::prelude::*;
-
-pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosError> {
+mod main_window;
+mod settings_window;
+mod welcome_window;
+pub fn window(pipe_name: &str, window_type: WindowType) -> Result<(), LxDosError> {
     let mut gui = Gui::new();
-
     let pipe_name_str = pipe_name.to_string();
     gui.handler(
         move |app: &gui::Application, tx_message: &Sender<InstanceMessage>| {
-            let window_title = "Lx DOS";
-            let button = gui::Button::builder()
-                .label("Press me!")
-                .margin_top(12)
-                .margin_bottom(12)
-                .margin_start(12)
-                .margin_end(12)
-                .build();
-
-            let window = Gui::window_builder(app, window_title)
-                .child(&button)
-                .width_request(480)
-                .height_request(360)
-                .build();
-
-            let window_weak = window.downgrade();
-            button.connect_clicked(move |_| {
-                if let Some(window) = window_weak.upgrade() {
-                    println!("Button clicked, closing window");
-                    window.close();
-                }
-            });
-
-            let tx_message_clone = tx_message.clone();
-            let pipe_name_for_close = pipe_name_str.clone();
-            window.connect_close_request(move |window| {
-                println!(
-                    "Window close requested, sending CloseWindow: {}",
-                    pipe_name_for_close
-                );
-                let _ = tx_message_clone.send_blocking(InstanceMessage::CloseWindow {
-                    pipe_name: pipe_name_for_close.clone(),
-                });
-                window.close();
-                gui::glib::Propagation::Proceed
-            });
-
+            // 共通: ウィンドウ追加・削除時の処理
             app.connect_window_added(|_, window| {
                 println!("Window added to application");
                 window.present();
             });
-
             app.connect_window_removed(|app, _| {
                 println!("Window removed from application");
                 if app.windows().is_empty() {
@@ -59,16 +23,24 @@ pub fn window(pipe_name: &str, _window_type: WindowType) -> Result<(), LxDosErro
                 }
             });
 
-            // Activate時にOpenWindowメッセージを送信
-            let tx_for_activate = tx_message.clone();
-            let pipe_name_clone_for_activate = pipe_name_str.clone();
-            println!("Application activated, sending OpenWindow message.");
-            let _ = tx_for_activate.send_blocking(InstanceMessage::OpenWindow {
-                pipe_name: pipe_name_clone_for_activate,
-                window_type: WindowType::Main,
-            });
+            // Activate時にOpenWindowメッセージを送信（Mainのみ）
+            if window_type == WindowType::Main {
+                let tx_for_activate = tx_message.clone();
+                let pipe_name_clone_for_activate = pipe_name_str.clone();
+                println!("Application activated, sending OpenWindow message.");
+                let _ = tx_for_activate.send_blocking(InstanceMessage::OpenWindow {
+                    pipe_name: pipe_name_clone_for_activate,
+                    window_type: WindowType::Main,
+                });
+            }
 
-            window.present();
+            // WindowTypeごとに処理を分岐
+            match window_type {
+                WindowType::Main => main_window::handle_gui(app, tx_message),
+                WindowType::Welcome => welcome_window::handle_gui(app, tx_message),
+                WindowType::Settings => settings_window::handle_gui(app, tx_message),
+                //_ => {}, // 他のタイプがあればここで追加
+            }
         },
     );
 

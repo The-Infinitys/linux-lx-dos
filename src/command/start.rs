@@ -9,6 +9,7 @@ pub fn start() -> Result<(), LxDosError> {
 
     let tray = App::system_tray()
         .menu(TrayMenu::new("Open".to_string(), "open".to_string()))
+        .menu(TrayMenu::new("Settings".to_string(), "settings".to_string()))
         .menu(TrayMenu::new("Quit".to_string(), "quit".to_string()));
     tray.start();
 
@@ -17,6 +18,9 @@ pub fn start() -> Result<(), LxDosError> {
             TrayEvent::MenuItemClicked(id) => match id.as_str() {
                 "open" => {
                     app.windows.open_window(WindowType::Main)?;
+                }
+                "settings" => {
+                    app.windows.open_window(WindowType::Settings)?;
                 }
                 "quit" => break,
                 _ => {}
